@@ -1,0 +1,681 @@
+## So which Approach?
+
+*リモートかローカルか*
+
+リモートなら：
+
+動作の遅い端末を持っている人でも満足できる処理スピードを提供できる
+
+ローカルなら：
+
+APIサーバへの余計な通信をしなくていいので処理が早い
+サーバの世話をしなくていい
+
+
+しばらくはローカルを実装する。
+
+コースの後の方でリモートを実装する。
+
+ここで問題：
+
+**webpackはブラウザ上で動作する代物ではない!*
+
+## Webpack replacement
+
+*Babelはブラウザで動くけど、webpackはそうはいかない*
+
+両方をブラウザで実行してくれる、`ESBuild`を使うことにする
+
+## A demo app
+
+しばらくは、
+
+ユーザがフォームにコードを入力して、画面上のsubmitボタンを押したら、
+
+ESBuildがトランスパイルとバンドリングをして
+
+その結果出来上がるこーどを画面に表示するアプリケーションを作る。
+
+```bash
+$ npx create-react-app jbook --template typescript
+```
+
+
+# Note: Caching for big performance gains
+
+## Crazy number of requests
+
+多分、reactとかを`import react from 'react'`すると
+node_modules並みの依存関係をダウンロードすることになる。
+
+作成中のアプリケーションでいえば、必要な分だけfetch()リクエストを送信することになる。
+
+このセクションでは余計なリクエストを送信しないようにキャッシング機能を設けてパフォーマンスを向上するようにアプリケーションを改善していく。
+
+#### Implementing Caching layer
+
+要は`onLoad()`でキャッシング機能を設ける
+
+`nested-test-pkg`はロード済か？
+
+ロード済である: onLoadは速やかにreturnする
+
+ロード済でない：fetch()する
+
+キャッシュしたデータはどこに保存しておけばいいのだろうか。
+
+ブラウザのlocalStroageにはそんなに空きがない。
+
+`indexedDB`なるものを使う。
+
+#### IndexedDB API
+
+https://developer.mozilla.org/ja/docs/Web/API/IndexedDB_API
+
+> IndexedDB は、ファイルや blob を含む大量の構造化データをクライアント側で保存するための低レベル API です。この API はインデックスを使用して、高パフォーマンスなデータの検索を行うことができます。ウェブストレージは比較的少量のデータを保存するのに有用ではありますが、構造化された非常に多くのデータを扱うには不十分です。IndexedDB が解決策を提供します。
+
+ということでブラウザにすでに組み込まれているストレージの一種であるようだ。
+
+#### Caching with key-value paires
+
+```bash
+$ cd jbook
+$ npm install localforage
+```
+
+```TypeScript
+import localforage from 'localforage';
+
+const fileCache = localforage.createInstance({
+   name: 'filecache' 
+});
+
+
+```
+
+## Loading CSS files
+
+```JavaScript
+import 'bulma/css/bulma.css'
+```
+
+これをインポートするとエラーになる。
+
+```bash
+Error: Build failed with 1 error.
+    error: Unexpected "@"
+```
+
+`@`はこのCSSファイルの内容の最初の文字である。
+
+エラーの原因は、
+
+```TypeScript
+// fetch-plugin.ts
+    const result: esbuild.OnLaodResult = {
+        loader: 'jsx'
+        // ...
+    };
+```
+
+というようにローディングするモジュールはすべてJavaScriptファイルであることを前提としているために、
+
+JavaScriptファイルであることを期待していたためである。
+
+
+#### `.css`拡張子を`loader`に与える方法は使えない
+
+```TypeScript
+// fetch-plugin.ts
+
+const { data, request } = await axios.get(args.path);
+
+const loader = args.path.match(/.css$/) ? 'css' : 'jsx';
+const result: esbuild.OnLoadResult = {
+    loader: loader,
+    // ...
+};
+```
+
+これなら行けるのでは？と思ったらエラー。
+
+```
+Uncaught (in promise) Error: Build failed with 1 error.
+error: Cannot import "a:http://unpkg.com/bulma/css/bulma.css" into a JavaScript file without an output path configured
+```
+
+これの意味するところは...
+
+https://esbuild.github.io/content-types/#css-from-js
+
+> また、JavaScriptからCSSをインポートすることもできます。この場合、esbuildは与えられたエントリポイントから参照されるすべてのCSSファイルを収集し、そのJavaScriptエントリポイントのJavaScript出力ファイルの隣にある兄弟CSS出力ファイルにバンドルします。つまり、esbuildがapp.jsを生成すると、app.jsが参照するすべてのCSSファイルを含むapp.cssも生成されます。以下は、JavaScript から CSS ファイルをインポートする例です。
+
+ということで、
+
+予めその(cssをimportする記述をした)JavaScriptファイルの存在するディレクトリに、そのimportする空のcssファイルを用意しておかなくてはならない模様。
+
+ここで問題なのは、
+
+このバンドリングプロセスはブラウザ上で行われているので、
+
+ファイルシステムが存在しない点である。
+
+これを解決しなくてはならない。
+
+#### ESbuildのバンドリング`loader`はファイルシステムが存在することが前提
+
+```bash
+index.js ──────┐      ┌────output.js
+            ESBuild ──┥     # css cannot be generated!
+bulma.css ─────┘      └────output.css
+```
+
+ファイルシステムが存在する環境であれば、cssファイルを出力できるのだけれど、
+
+ブラウザにはファイルシステムが存在しないからcssファイルを出力することができないよ。
+
+なのでファイルの出力をしない方向で解決策を見出す。
+
+
+#### cssの内容はDOMに書き込む
+
+最早出力結果にcssのインポートを行わず(loaderを使わず)、
+
+かわりにcssの内容をDOMに書き込むことにする
+
+```TypeScript
+// fetch-plugin.ts
+
+const { data, request } = await axios.get(args.path);
+
+const fileType = args.path.match(/.css$/) ? 'css' : 'jsx';
+
+const constents = fileType === 'css' 
+    ? 
+    `
+        const style = document.createElement('style');
+        style.innreText = 'body {background-color: "red"}';
+        document.head.appendChild(style);
+    `
+    : data;
+const result: esbuild.OnLoadResult = {
+    loader: 'jsx',
+    // ...
+};
+```
+bundle結果：
+
+```JavaScript
+(() => {
+    // a: http://unpkg.com/bulma/css/bulma.css
+    vat style = document.createElement('style');
+    style.innerText = 'body {background-color: "red"}';
+    document.head.appendChild(style);
+})();
+```
+
+あとはいかにハードコーディングしないようにするか。
+
+#### DOMへの動的cssコードの埋め込み
+
+次はうまくいかない
+
+```JavaScript
+const constents = fileType === 'css' 
+    ? 
+    `
+        const style = document.createElement('style');
+        style.innreText = '${data}';
+        document.head.appendChild(style);
+    `: data;
+```
+
+`Unterminated string literal`
+
+文字をエスケープしていないからである。
+
+```TypeScript
+// fetch-plugin.ts
+
+const { data, request } = await axios.get(args.path);
+
+const fileType = args.path.match(/.css$/) ? 'css' : 'jsx';
+
+const escaped = data
+    .replace(/\n/g, '')
+    .replace(/"/g, '\\"')
+    .replace(/'/g, "\\'");
+
+const constents = fileType === 'css' 
+    ? 
+    `
+        const style = document.createElement('style');
+        style.innreText = '${escaped}';
+        document.head.appendChild(style);
+    `
+    : data;
+const result: esbuild.OnLoadResult = {
+    loader: 'jsx',
+    // ...
+};
+```
+
+これで動的にcssを出力できた！
+
+
+## 関係ない話
+
+gitを操作するとどうなるのかアニメーションで示してくれるサイト
+
+https://gigazine.net/news/20230204-git-sim/
+
+#### Separete Load Files, Extracting common caching logic
+
+index.js, .css, .*でonLoad関数を分割する。
+
+重複しているキャッシング機能を取り出す。
+
+NOTE: 公式からダウンロードして
+
+キャッシング機能はすべてローディングする際にチェックするので、
+
+次のようにする
+
+```TypeScript
+// fetch-plugin.ts
+
+    // この定義の順番が重要
+    // トップレベルで定義すること。
+    // `.*`ですべてのローディングに適用する
+    build.onLoad({ filter: /.*/ }, (args: any) => {
+        // キャッシングロジック
+        const cachedResult = await fileCache.getItem<esbuild.OnLoadResult>(args.path);
+
+        if(cachedResult) {
+            return cachedResult;
+        };
+    });
+```
+
+キャッシング済ならばそのキャッシング済のモジュールのコードを返す。
+
+キャッシング済でないなら次のonLoad()関数に移る
+
+という機能を利用するので、
+
+これ以降のonLaod()関数にはキャッシングされてなかった場合の定義だけ書けばすべて矛盾なく動作してくれる。
+
+---------
+
+#### Sandboxing an iFrame
+
+iframeと(親環境が)相互アクセスができる条件は...
+
+- `iframe`が`sandbox`プロパティを持たないとき、または`sandbox="allow-same-origin"`プロパティを持つとき
+
+- 
+
+#### `sandbox`とは
+
+iframeのできることを制限するiframeタグの属性である。
+
+iframeに`sandbox`とだけ書いておくと、親環境との相互アクセスなどすべての制約を適用し、
+
+`sandbox`を記述していないiframeは基本的にすべて許可という状態になる。
+
+`sandbox="allow-xxxx"`のように許可する機能を明示的に指定する必要がある。
+
+# Temporary Note section 11 
+
+## ユーザ入力を即座に画面出力させていく
+
+submitを消すのでonClickハンドラを除去する
+
+## Monaco Editor
+
+一般的なエディターに備わっているものを提供してくれるパッケージ。
+
+React v18以降を使っている人は
+
+MonacoEditorをインストールするときは次のように
+
+`--legacy-peer-deps`フラグを付けること
+
+```bash
+$ cd jbook
+$ npm install --save-exact @monaco-editor/react@3.7.5 --legacy-peer-deps
+```
+
+> **今後、このコースで作成されるすべてのnpm installコマンドに--legacy-peer-depsフラグを渡す必要があります。**
+
+#### Eidtorの表示
+
+MonacoEditorのデフォルトのエディターコンポーネントを用いる。
+
+これはMonacoEditorでいうところの`controllededitor`ではない。
+
+touch `src/components/code-editor.tsx`
+
+```TypeScript
+// code-editor.tsx
+import MonacoEditor from '@monaco-editor/react';
+
+const CodeEditor = () => {
+    // デフォルトだと高さが0で設定されているので
+    return <MonacoEditor height="500px" />;
+};
+
+export default CodeEditor;
+```
+
+#### Configuring
+
+*設定の適用*
+
+monaco-editor/reactは、
+
+実際のMonacoEditorのラッパーコンポーネントである。
+
+「実際のMonacoEditor」はReactで書かれているわけではない。
+
+```TypeScript
+// code-editor.tsx
+import MonacoEditor from '@monaco-editor/react';
+
+const CodeEditor = () => {
+
+    return <MonacoEditor 
+        // 設定を設ける
+        language="javascript"
+        theme="dark"
+        height="500px" 
+    />;
+};
+
+export default CodeEditor;
+```
+
+#### ユーザが長文を入力したらなどエディター設定
+
+デフォルトは横にスクロール。
+
+折り返すなどの設定を適用したいときは？
+
+`monacoeditor.editor.IEditorConstructionOptions`を操作する。
+
+そのために以下をインストールする必要がある。(型定義を見るために)
+
+```bash
+$ npm install --save-exact monaco-editor
+```
+
+```TypeScript
+// code-editor.tsx
+
+const CodeEditor = () => {
+
+    return <MonacoEditor 
+        // 設定を設ける
+        language="javascript"
+        theme="dark"
+        height="500px" 
+        options={{
+            wordWrap: 'on',
+            // 他にも
+            miniMap: { enabled: false },
+            showUnused: false,
+            folding: false,
+            lineNumberMinChars: 3,
+            fontSize: 16,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+        }}
+    />;
+};
+```
+
+## Monacoeditorに出力させる
+
+MonacoEditorへ入力された値を親コンポーネントへ送信する。
+
+
+```TypeScript
+// code-editor.tsx
+
+interface CodeEditorProps {
+    initialValue: string;
+};
+
+// index.tsxからinitialValueのpropsを受け取る
+const CodeEditor: React.FC<CodeEditorProps> = ({
+    initialValue
+}) => {
+
+    return <MonacoEditor 
+        value={initialValue} //ここに値を与えればよい
+        language="javascript"
+        theme="dark"
+        height="500px" 
+        options={{
+            wordWrap: 'on',
+            miniMap: { enabled: false },
+            showUnused: false,
+            folding: false,
+            lineNumberMinChars: 3,
+            fontSize: 16,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+        }}
+    />;
+};
+```
+
+#### onChange
+
+ユーザ入力フォームでのchangeイベントと連動させる。
+
+```TypeScript
+// index.tsx
+
+// ...
+return (
+    <div>
+        <CodeEditor
+            initialValue="const a = 1;"
+            onChange={(value) => setInput(value)}
+        />
+        // ...
+```
+```TypeScript
+// code-editor.tsx
+
+interface CodeEditorProps {
+    initialValue: string;
+    onChange: () => string;
+};
+
+const CodeEditor: React.FC<CodeEditorProps> = ({
+    initialValue, onChange
+}) => {
+
+    return <MonacoEditor 
+        onChange={onChange}
+        value={initialValue}
+        language="javascript"
+        theme="dark"
+        height="500px" 
+        options={{
+            wordWrap: 'on',
+            miniMap: { enabled: false },
+            showUnused: false,
+            folding: false,
+            lineNumberMinChars: 3,
+            fontSize: 16,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+        }}
+    />;
+};
+```
+
+onChangeで反応するようにするとエラーが起こるので、
+
+`editorDidMount`時に値を更新することにする
+
+```TypeScript
+
+const CodeEditor: React.FC<CodeEditorProps> = ({
+    initialValue, onChange
+}) => {
+    const onEditorDidMount = (
+        getvalue: () => string, // editorDidMount関数が必ず取得することになる関数で入力されてある値を返す。
+        monacoEditor: any
+    ) => {
+        monacoEditor.onDidChangeModelContent(() => {
+            onChange(getValue());
+        });
+    };
+
+    return <MonacoEditor 
+        editorDidMount={onEditorDidMount}
+        value={initialValue}
+        language="javascript"
+        theme="dark"
+        height="500px" 
+        options={{
+            wordWrap: 'on',
+            miniMap: { enabled: false },
+            showUnused: false,
+            folding: false,
+            lineNumberMinChars: 3,
+            fontSize: 16,
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+        }}
+    />;
+};
+```
+
+#### Prettierをエディタに導入する
+
+```bash
+$ npm install prettier @types/prettier
+```
+```TypeScript
+import prettier from 'prettier';
+import parser from 'prettier/perser-babel';
+```
+
+エディタに入力されてある値にアクセスできなくてはならない。
+
+useRefを使う。
+
+```TypeScript
+const editorRef = useRef<any>;
+
+const onEditorDidMount = () => {
+    editorref.current = monacoEditor;
+};
+
+const onFormatClick = () => {
+    // エディタに入力されてある値を取得する
+    const unformatted = editorRef.current.getModel().getValue();
+    // fomat that value
+    const formetted = prettier.format(unformatted, {
+        parser: 'babel',
+        plugins: [parser],
+        useTabs: false,
+        semi: true,
+        singleQuote: true
+    });
+
+    // send it back
+    editorRef.current.setValue(formatted);
+}
+```
+
+## Adding a CSS Library
+
+```bash
+$ cd jbook
+$ npm install bulmaswatch
+```
+
+見た目の話。割愛。
+
+---
+
+#### CodeCell
+
+```TypeScript
+// code-cell.tsx
+import { useState } from 'react';
+import CodeEditor from './code-editor';
+import Preview from './preview';
+import bundle from '../bundler';
+
+const CodelCell = () => {
+    const [code, setCode] = useState('');
+    const [input, setInput] = useState('');
+
+    const onClick = () => {
+        const output = await bundle(input);
+        setCode(output);
+    };
+
+    return (
+        //...
+    );
+};
+
+export default CodeCell;
+```
+```TypeScript
+// index.tsx
+import 'bulmaswatch/superhero/bulmaswatch.min.css';
+import ReactDOM from 'react-dom';
+import CodeCell from './components/code-cell';
+
+const App = () => {
+    return (
+        <div>
+            // 将来的にこのCodeCellコンポーネントの配列を渡すようになる
+            <CodeCell />
+        </div>;
+    );
+};
+
+// ...
+```
+
+## リサイジング
+
+エディタとプレビューをリサイジング可能にする
+
+#### `react-resizable`
+
+```bash
+$ cd jbook
+$ npm install --save-exact react-resizable@3.0.4 @types/react-resizable@3.0.2 --legacy-peer-deps
+$ yarn add --exact react-resizable@3.0.4 @types/react-resizable@3.0.2 --legacy-peer-deps
+```
+
+`import { Resizable, ResizableBox } from 'react-resizable';`より、
+
+- Resizable: 
+- ResizableBox: 
+
+```TypeScript
+// components/resizable.tsx
+import { ResizableBox } from 'react-resizable';
+
+interface ResizableProps {
+    direction: 'horizontal' | 'vertical';
+  children?: React.ReactNode;
+};
+
+const Resizable: React.FC<ResizableProps> = ({ direction, children }) => {
+    return (<div>{children}</div>);
+};
+
+export default Resizable;
