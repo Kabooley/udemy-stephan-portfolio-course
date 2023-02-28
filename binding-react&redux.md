@@ -672,4 +672,117 @@ Cellがないときに`AddCell`を強制的に表示させる
 
 解決策３： 表示するか非表示にするかのpropを渡す
 
-採用案。
+```TypeScript
+// cell-list.tsx
+const CellList: React.FC = () => {
+    // ...
+
+    return (
+      <div>
+        {renderedCells}
+        // NOTE: 表示非表示に関するプロパティを追加する
+        <AddCell forceVisible={cells.length === 0} nextCellId={null} />
+      </div>
+    );
+  };
+  
+export default CellList;
+
+// add-cell.tsx
+
+interface AddCellProps {
+  nextCellId: string | null;
+    // NOTE: add new prop
+  forceVisible?: boolean;
+}
+
+const AddCell: React.FC<AddCellProps> = ({ forceVisible, nextCellId }) => {
+  const { insertCellBefore } = useActions();
+
+  return (
+    // NOTE: added new prop
+    <div className={`add-cell ${forceVisible && 'force-visible'}`}>
+      <div className="add-buttons">
+        <button
+          className="button is-rounded is-primary is-small"
+          onClick={() => insertCellBefore(nextCellId, 'code')}
+        >
+          <span className="icon is-small">
+            <i className="fas fa-plus" />
+          </span>
+          <span>Code</span>
+        </button>
+        <button
+          className="button is-rounded is-primary is-small"
+          onClick={() => insertCellBefore(nextCellId, 'text')}
+        >
+          <span className="icon is-small">
+            <i className="fas fa-plus" />
+          </span>
+          <span>Text</span>
+        </button>
+      </div>
+      <div className="divider"></div>
+    </div>
+  );
+};
+```
+
+#### 他スタイリング
+
+割愛
+
+## `AddCell`の奇妙な動作の修正
+
+
+現状、`Code`追加ボタンを押すとAddCellコンポーネントで奇妙なﾄﾗﾝｼﾞｼｮﾝが発生する
+
+理由は一番下の`AddCell`コンポーネントがkeyを受け取っていないからである
+
+```
+    UI:
+
+    ─────────[+Code]───[+Text]───────────   key: 'aaa'
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: aaa      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: no key!
+
+```
+
+このとき下の方の`AddCell`を押すと...
+
+```
+    UI:
+
+    ─────────[+Code]───[+Text]───────────   key: 'aaa'
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: aaa      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'bbb'
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: bbb      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: no key!
+
+```
+
+最終的にkey: `bbb`のHTML、
+
+`Fragment`でラッピングされている`AddCell`と`CellListItem`のペアが
+
+直接DOMに挿入されることになる。
+
+さっきまで一番下のにあったAddCellコンポーネントのボタンをマウスが押していたが
+
+セルの追加によってそのコンポーネントは下に移動した。
+
+
+#### 解決策３つ
+
