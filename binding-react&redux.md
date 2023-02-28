@@ -479,3 +479,197 @@ const CellListItem: React.FC<CellListItemProps> = ({ cell }) => {
 押すとそこにcodeかtextエディタのセルを挿入する
 
 各ボタンが押されたら、cell idに対してINSERT_CELL_BEFOREをディスパッチする
+
+#### Add Cell出力
+
+セル追加のコンポーネントの数は、
+
+すべてのセルの上下に存在する数という考え方ではなく、
+
+セルリストの数　＋　１にしたい。
+
+次のようにすればよい：
+
+- コンポーネント配列ではAddCellとCellListItemのペアを１要素とする
+- デフォルトの出力で常に一番下にAddCellを出力するようにする
+
+```TypeScript
+import { useTypedSelector } from '../hooks/use-typed-selector';
+import CellListItem from './cell-list-item';
+import AddCell from './add-cell';
+
+const CellList: React.FC = () => {
+    const cells = useTypedSelector(({ cells: { order, data }}) => order.map((id) => data[id]));
+
+    const renderedCells = cells.map(
+        cell => (
+        <>
+            // NOTE: added AddCell
+            <AddCell nextCellId={cell.id} />
+            <CellListItem cell={cell} />
+        </>);
+    );
+
+    console.log(renderedCells);
+
+    return (
+        <div>
+            {renderedCells}
+            // NOTE: always leave AddCell here.
+            // ひとまずnullを渡すので関係コンポーネントでnullを受け付けるようにする
+            <AddCell nextCellId={null} />
+        </div>
+    );
+};
+
+export default CellList;
+```
+
+#### `Fragment`を使った`key`プロパティ警告の解決
+
+https://ja.reactjs.org/docs/fragments.html
+
+`cell-list.tsx`で出力するコンポーネント配列に`AddCell`を追加したけどkeyプロップがまだついていない。
+
+`Fragment`コンポーネントを使えば、
+
+AddCellとCellListItemをdivで囲う必要なく余計な要素を出力せずにラッピングできる。
+
+```TypeScript
+import { Fragment } from 'react';
+
+const CellList: React.FC = () => {
+    // ...
+
+    const renderedCells = cells.map(
+        cell => (
+            // Fragmentで囲って、CellListItemに渡していた
+            // keyを代わりにFragmentへ渡す
+        <Fragment key={cell.id} >
+            <AddCell nextCellId={cell.id} />
+            <CellListItem cell={cell} />
+        </Fragment>);
+    );
+
+    return (
+        // ...
+    );
+};
+```
+
+#### AddCell スタイリング
+
+```TypeScript
+import './add-cell.css';
+import { useActions } from '../hooks/use-actions';
+
+interface AddCellProps {
+    nextCellId: string | null;
+};
+
+const AddCell: React.FC<AddCellProps> = ({ nextCellId }) => {
+    const { insertCellBefore } = useActions();
+
+    return (
+        <div className="add-cell">
+            <div className="add-buttons">
+                <button 
+                    className="button is-primary is-rounded is-small" 
+                    onClick={() => insertCellBefore(nextCellId, 'code')}
+                >
+                    <span className="icon is-small">
+                        <i className="fas fa-plus" />
+                    </span>
+                    <span>Code</span>
+                </button>
+                <button 
+                    className="button is-primary is-rounded is-small" 
+                    onClick={() => insertCellBefore(nextCellId, 'text')}
+                >
+                <span className="icon is-small">
+                    <i className="fas fa-plus" />
+                </span>
+                <span>Text</span>
+                </button>
+            </div>
+            <div className="divider"></div>
+        </div>
+    );
+};
+
+export default AddCell;
+```
+```css
+.add-cell {
+    position: relative;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.add-cell:hover {
+    opacity: 1.0;
+}
+
+.add-cell .divider {
+    position: absolute;
+    top: 50%;
+    bottom: 50%;
+    right: 5%;
+    left: 5%;
+    border-bottom: 1px solid gray;
+    width: 95%;
+    z-index: -1;
+}
+
+.add-buttons {
+    display: flex;
+    justify-content: center;
+}
+
+.add-cell .add-buttons button {
+    margin: 0 20px;
+}
+```
+
+#### CSSの条件分岐Tips
+
+Cellがないときに`AddCell`を強制的に表示させる
+
+今`AddCell`はマウスをホバーすると表示されるようになっている。
+
+つまりアプリケーションがセルを表示していないまっさらな状態を表示しているとき、
+
+`AddCell`が表示されないので、
+
+まっさらな状態のときに何をすればいいのか不明なアプリに見えて困る。
+
+なのでCellがひとつもないときは必ず`AddCell`を表示させるという条件をCSSに設けるにはどうするべきか
+
+解決策１：`className`に条件分岐を設ける
+
+```TypeScript
+    return (
+        <div>
+            {renderedCells}
+            <div className={cell.length === 0 ? 'force-visibile': ''}>
+                <AddCell nextCellId={null} />
+            </div>
+        </div>
+    );
+```
+解決策２：`style`propに条件分岐を設ける
+
+```TypeScript
+    return (
+        <div>
+            {renderedCells}
+            <AddCell style={{ opacity: cell.length === 0 ? 1 : 0}} nextCellId={null} />
+        </div>
+    );
+```
+
+過剰なプロパティになる
+
+解決策３： 表示するか非表示にするかのpropを渡す
+
+採用案。
