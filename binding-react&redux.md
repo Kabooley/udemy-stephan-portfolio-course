@@ -942,3 +942,101 @@ CSSの適用が期待通りになる。
 
 問題が完全に解決される。
 
+## リファクタリング
+
+`INCERT_CELL_AFTER`の実装:
+
+```
+    UI:
+
+    ─────────[+Code]───[+Text]───────────   key: no key!
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: aaa      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'aaa'
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: bbb      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'bbb'
+```
+
+`CellListItem` --> `AddCell`の順番にすること
+
+この一塊のことをFragmentと呼ぶことにする。
+
+主な部分：
+
+```TypeScript
+// action/index.ts
+
+/**
+ * まず新規に追加されるセルは、reducer内部でランダムなidを割り当てられる
+ * このpayloadのidは、`AddCell`が押されたFragmentのid番号である。
+ * 
+ * */ 
+export interface InsertCellAfterAction {
+  type: ActionType.INSERT_CELL_AFTER;
+  payload: {
+    id: string;
+    type: CellTypes;
+  };
+}
+
+
+// cellsReducer.tsx
+const reducer = produce((state: CellsState = initialState, action: Action) => {
+  switch (action.type) {
+    // ...
+
+    // action/index.tsで名前変更の後、
+    // reducerで処理方法を変更する
+    // 
+    // 
+    case ActionType.INSERT_CELL_AFTER:
+      const cell: Cell = {
+        content: '',
+        // 
+        type: action.payload.type,
+        id: randomId(),
+      };
+
+      state.data[cell.id] = cell;
+
+      // array.prototype.findIndex()は
+      // テスト関数を満たす、一番初めの要素のインデックス番号を返す
+      // どれも満たさなかったら-1を返す
+      // 
+      // ここでは-1ならば新規のセルであるということになる
+      const foundIndex = state.order.findIndex(
+        (id) => id === action.payload.id
+      );
+
+      // もしも新規のセルならば...
+      if (foundIndex < 0) {
+        // unshift()は引数の要素を配列の序列の一番初めに追加する
+        // 
+        // なので新規のセルは一番初めに追加される
+        state.order.unshift(cell.id);
+      // 既存のセルであるならば...
+      } else {
+        // 既存のセルの次に、挿入するセルを追加する
+        state.order.splice(foundIndex + 1, 0, cell.id);
+      }
+
+      return state;
+
+      // ...
+  }
+}, 
+initialState);
+```
+
+React側のリファクタリング：
+
+```TypeScript
+
+```
