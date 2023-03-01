@@ -784,5 +784,161 @@ const AddCell: React.FC<AddCellProps> = ({ forceVisible, nextCellId }) => {
 セルの追加によってそのコンポーネントは下に移動した。
 
 
-#### 解決策３つ
+## 234　続き
+
+奇妙な動作とは？
+
+今UIでCodeセル追加ボタンを押すと、セルが追加された後に一番下の`AddCell`がフェードアウトする表現をし、直後マウスがあった場所に現れた`AddCell`がhover適用で浮かび上がったため、まるで`addCell`がいったん下に移動して直後またマウスのある場所へ戻ってきたみたいに見えること。
+
+これが奇妙な動作。
+
+これの原因：
+
+「一番下のAddCellコンポーネントは単純に下に移動するだけだから」
+
+あらたにセルを追加したときに、一番下の`AddCell`は単純に下に移動するだけなので、
+
+そこに適用されていたCSSは有効であるため、
+
+追加ボタンを押された後に、下に移動して、下に移動したためにマウスのホバーから解き放たれたから、フェードアウト表現をするのである。
+
+同様に、ちょうど`AddCell`の+Codeボタンを押したマウスがある場所に新しく挿入された`AddCell`がCSSの:hoverの効果を即座に適用され実行されたのである。
+
+#### three possible solutions
+
+1. active疑似セレクタを使う
+
+`active`疑似セレクタはユーザがクリックしたときにインタラクトする要素に適用される。
+
+なのでこれに当てはまる要素はクリックされたときにそのセレクタが適用される。
+
+```css
+.add-cell {
+    position: relative;
+    opacity: 0;
+    transition: opacity 0.3s ease-in 0.1s;
+    margin: 8px 0;
+  }
+
+  /* 
+    NOTE: セレクタの追加 
+    !importantを付けることで他の要素に適用されていた
+    opacityのどれよりも優先される
+  */
+  .add-cell:active {
+    opacity: 0 !important;
+    transition: 0s;
+  }
+
+  .add-cell:hover {
+    opacity: 1;
+  }
+  ```
+
+欠点：マウスのクリックボタンを押したままにすると、`active`セレクタが適用されたままになること
+
+そのため、`AddCell`ボタンをクリックしたままにしてしばらくしてから話すと、
+
+まるでクリック時にはフェードイン、クリックしたままのときは消えて、離すとまた現れる
+
+という奇妙な表現になってしまう。
+
+2. コンポーネントに更新のたびに新しいkeyを割り当てる
+
+AddCellを配列の方に含める方法：
+
+```TypeScript
+const CellList: React.FC = () => {
+    const cells = useTypedSelector(({ cells: { order, data } }) =>
+      order.map((id) => data[id])
+    );
+  
+    const renderedCells = cells.map((cell) => (
+      <Fragment key={cell.id}>
+        <AddCell nextCellId={cell.id} />
+        <CellListItem cell={cell} />
+      </Fragment>
+    ));
+
+    // AddCellをrender()せずにrenderedCellに含める方法
+    renderedCell.push(
+        <AddCell
+            // 毎度新規のkeyを割り当てる
+            key={Math.random()} 
+            forceVisible={cells.length === 0} 
+            nextCellId={null} 
+        />
+    );
+  
+    return (
+      <div>
+        {renderedCells}
+      </div>
+    );
+  };
+```
+
+Math.random()で毎レンダリング時に新しいkeyを割り当てるので
+
+Reactとしてはそのコンポーネントは更新ではなく、新規のコンポーネント生成として扱われる。
+
+そのため先まで適用されていたCSSは即座に解除されるので、
+
+:hoverが適用されなくなり、初期値のopacityが適用されることになる。
+
+これならば一番下の`AddCell`のおかしな挙動が解消される。
+
+欠点：最後の要素以外には適用されない点
+
+最後の要素以外はいまだ同じ問題が残る。
+
+3: [採用案] アクションの見直し
+
+そもそもこのアプリケーションが抱えていた問題へ向きあう。
+
+`INCERT_CELL_BEFORE`を使う代わりに`INCERT_CELL_AFTER`という新たなアクションを使う。
+
+どうなるかというと、
+
+まず一番上の`AddCell`をkeyなしにして、Fragmentの塊をCellListItemとAddCellの順番に変更する
+
+```
+    UI:
+
+    ─────────[+Code]───[+Text]───────────   key: no key!
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: aaa      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'aaa'
+```
+
+この状態でセル追加ボタンを押すと、
+
+```
+    UI:
+
+    ─────────[+Code]───[+Text]───────────   key: no key!
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: aaa      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'aaa'
+
+    ┌────────────────────────────────────┐
+    │               CELL    id: bbb      │
+    └────────────────────────────────────┘
+
+    ─────────[+Code]───[+Text]───────────   key: 'bbb'
+```
+
+全く新しいコンポーネントが下に作成される。
+
+これならばセルはDOMの移動ではなくDOMの新規追加になるので
+
+CSSの適用が期待通りになる。
+
+問題が完全に解決される。
 
