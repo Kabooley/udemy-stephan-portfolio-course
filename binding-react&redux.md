@@ -992,38 +992,35 @@ const reducer = produce((state: CellsState = initialState, action: Action) => {
   switch (action.type) {
     // ...
 
-    // action/index.tsで名前変更の後、
-    // reducerで処理方法を変更する
-    // 
-    // 
     case ActionType.INSERT_CELL_AFTER:
+      // 新規のセル・オブジェクトを生成して...
       const cell: Cell = {
         content: '',
-        // 
         type: action.payload.type,
         id: randomId(),
       };
 
+      // それをdata配列へ追加する
       state.data[cell.id] = cell;
 
-      // array.prototype.findIndex()は
-      // テスト関数を満たす、一番初めの要素のインデックス番号を返す
-      // どれも満たさなかったら-1を返す
-      // 
-      // ここでは-1ならば新規のセルであるということになる
+      // 追加ボタンを押された`AddCell`のidを取得して...
       const foundIndex = state.order.findIndex(
         (id) => id === action.payload.id
       );
 
-      // もしも新規のセルならば...
+      // そのidが存在しなかったら
+      // つまり、
+      // no keyの`AddCell`からのものならば、
       if (foundIndex < 0) {
+        // NOTE: 変更ポイント１：
         // unshift()は引数の要素を配列の序列の一番初めに追加する
-        // 
-        // なので新規のセルは一番初めに追加される
+        // つまり、
+        // no keyの`AddCell`は常に配列の先頭に配置する。
         state.order.unshift(cell.id);
       // 既存のセルであるならば...
       } else {
-        // 既存のセルの次に、挿入するセルを追加する
+        // NOTE: 変更ポイント２：
+        // 新規のセルは、追加ボタンを押された`AddCell`の**次に**追加される
         state.order.splice(foundIndex + 1, 0, cell.id);
       }
 
@@ -1035,8 +1032,4 @@ const reducer = produce((state: CellsState = initialState, action: Action) => {
 initialState);
 ```
 
-React側のリファクタリング：
-
-```TypeScript
-
-```
+あとはこれを適用できるように細かい調整するだけ。
