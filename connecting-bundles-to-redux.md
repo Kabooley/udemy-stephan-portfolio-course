@@ -45,19 +45,96 @@ interface CellsState {
 
 https://redux.js.org/usage/deriving-data-selectors
 
-- なぜ優れたReduxアーキテクチャはstateを最小に保ち、derived dataを導き出すのか
-- セレクタ関数によるデータの導出とルックアップのカプセル化の原則
-- Reselectライブラリを使って、最適化のためのメモ化セレクタを書く方法
-- Reselectを使った上級テクニック
-- セレクタを作成するためのツールやライブラリの追加
-- セレクタの書き方のベストプラクティス
-
-Reduxはstateを最小にとどめ、可能な限りそのstateから追加の値をを導き出すことを特に推奨しています。
-
 Selectorとは：
 
 **`selector`関数はRedux-stateを引数として受け付け、stateに基づくデータを返す関数のことである**
 
 selectorとはReduxのstateからデータを取得する仕組みで、パフォーマンスが最適化されている。
 
-なのでhooksの`useSelector`を必ずしも使う必要がなく、独自の関数を用意してもいい
+## Plan to connect Bundles to Redux
+
+これから実装しようとしていることの図：
+
+```
+┌───────── Redux Store ──────┐
+│                            │
+│          ┌──> data   ────────┐
+│ cells ───┥                 │ ├─────>　CellList
+│          └──> order  ────────┘           │
+│                            │             │
+│                            │        ┌────┴────┐
+│                           CellListItem        CellListItem
+│                            │        │         │
+│         ┌──────────────────> CodeCell         CodeCell
+│         │                  │        │         │
+│         │         Code unchanged for 750ms?   Code unchanged for 750ms?
+│         │                  │        │         │
+│         │       BundleCell Action Creator     BundleCell Action Creator 
+│         │                  │        │                   │
+│         │                  │        ├ BUNDLE_START      │
+│         └────────────┐     │        ├ BUNDLE_COMPLETE   │
+│                      │     │        │                   │
+│ bundles ────> data ──┘     │        │                   │
+└──────────────── ^ ─────────┘        │                   │
+                  └───────────────────┴───────────────────┘
+```
+
+つまり、
+
+- `CellListItem`のレンダリング時に`data`を取得してレンダリングする
+- ユーザがエディタを編集してそれ以上の入力が750ms以上なかったらbundleのアクションクリエータを生成する
+- それをディスパッチしてバンドリングプロセスを多分reducerが実行させる
+- 処理時間が長かったらローディング画面を設けることにする
+- バンドリング完了したら完了を示すアクションをディスパッチする
+- バンドリングした結果をRedux Storeへ上書きする
+- `CodeCell`は更新を受け取り再レンダリングする
+
+
+## Defining Bundlign Action types
+
+```TypeScript
+export enum ActionType {
+    MOVE_CELL = 'move_cell',
+    DELETE_CELL = 'delete_cell',
+    INSERT_CELL_AFTER = 'insert_cell_after',
+    UPDATE_CELL = 'update_cell',
+
+    // NOTE: new added.
+    BUNDLE_START = 'bundle_start',
+    BUNDLE_COMPLETE = 'bundle_complete'
+}
+
+// actions/index.ts
+
+export interface BundleStart {
+  type: ActionType.BUNDLE_START,
+  paload: {
+    cellId: string;
+  };
+}
+
+export interface BundleComplete {
+  type: ActionType.BUNDLE_COMPLETE,
+  payload: {
+    cellId: string;
+    bundle: {
+      code: string;
+      err: string;
+    }
+  };
+}
+
+export type Action =
+  | MoveCellAction
+  | DeleteCellAction
+  | InsertCellAfterAction
+  | UpdateCellAction
+  | BundleStart
+  | BundleComplete;
+```
+
+Reducer:
+
+```TypeScript
+
+```
