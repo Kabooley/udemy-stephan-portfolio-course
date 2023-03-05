@@ -90,7 +90,7 @@ selectorとはReduxのstateからデータを取得する仕組みで、パフ�
 - `CodeCell`は更新を受け取り再レンダリングする
 
 
-## Defining Bundlign Action types
+## Defining Bundling Action types
 
 ```TypeScript
 export enum ActionType {
@@ -135,6 +135,212 @@ export type Action =
 
 Reducer:
 
+`BUNDLE_START`, `BUNDLE_COMPLETE`のディスパッチに対応
+
 ```TypeScript
+// NOTE: `immer`で直接stateを変更する分をかけているが内部的には必ず上書きであるので注意
+import produce from 'immer';
+import { ActionType } from '../action-types';
+import { Action } from '../actions';
+
+interface BundleState {
+    [key: string]: {
+        code: string;
+        loading: boolean;
+        err: string;
+    }
+};
+
+const initialState: BundleState = {};
+
+const reducer = produce(
+    (state: BundleState = initialState, action: Action): BundleState => {
+        switch(action.type) {
+            case ActionType.BUNDLE_START:
+                state[action.payload.cellId] = {
+                    loading: true,
+                    code: '',
+                    err: ''
+                };
+                return state;
+            case ActionType.BUNDLE_COMPLETE:
+                state[action.payload.cellId] = {
+                    loading: false,
+                    code: action.payload.bundle.code,
+                    err: action.payload.bundle.err
+                };
+                return state;
+            default: 
+                return state;
+        };
+    },
+    // NOTE: To avoid error
+    initialState
+);
+
+export default reducer;
+```
+
+#### Redux: 新しいReducerを追加する
+
+```TypeScript
+import { combineReducers } from 'redux';
+import cellsReducer from './cellsReducer';
+import bundleReducer from './bundlesReducer';
+
+// NOTE: 新しいReducerは常にここについかすること
+const reducers = combineReducers({
+    cells: cellsReducer,
+    bundles: bundleReducer  // 今回追加。
+});
+
+export default reducers;
+
+// NOTE: ここで`RootState`をエクスポートしておくと、
+// Reduxのselectorに渡すときに便利
+export type RootState = ReturnType<typeof reducers>;
+```
+
+`bundlesReducer.ts`にて`bundleState`インタフェイスが定義されており、
+
+これもコンバインされるため、自動的に`RootState`へ追加されている
+
+
+#### `CodeCell`へバンドリングアクションの導入
+
+Reduxでバンドリングプロセスを実行することになったので`CodeCell`をリファクタリング
+
+直接bundle()を呼び出す代わりにbundleアクションを呼び出す
+
+バンドルされたコードはuseTypedSelector()を使って取得することにする
+
+```TypeScript
+import { useEffect } from 'react';
+import CodeEditor from './code-editor';
+// import Preview from './preview';
+import Resizable from './resizable';
+import { Cell } from '../state';
+import { useActions } from '../hooks/use-actions';
+import { useTypedSelector } from '../hooks/use-typed-selector';
+
+interface CodeCellProps {
+  cell: Cell;
+}
+
+const CodeCell: React.FC<CodeCellProps> = ({ cell }) => {
+  const { updateCell, createBundle } = useActions();
+  // バンドル結果を取得する仕組み
+  const bundle = useTypedSelector((state) => state.bundles[cell.id]);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      // バンドルアクションを発行する仕組み
+      createBundle(cell.id, cell.content);
+    }, 750);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [cell.content, cell.id]);
+
+  return (
+    <Resizable direction="vertical">
+      <div
+        style={{
+          height: 'calc(100% - 10px)',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <Resizable direction="horizontal">
+          <CodeEditor
+            initialValue={cell.content}
+            onChange={(value) => updateCell(cell.id, value)}
+          />
+        </Resizable>
+        {/* <Preview code={code} err={err} /> */}
+      </div>
+    </Resizable>
+  );
+};
+```
+
+アプリケーションマウント直後に実行されるハードコーディングされている`store.dispatch()`で生成されたCellはundefinedになる可能性がある
+
+#### `bundleState`が`undefined`をとりうるようにする
+
+`undefined`は必ずなりうるようにする。
+
+そうしないとマウント時に必ずエラーを起こす。
+
+後で次の二つの場合にロードスピナを表示することにする。
+
+1. bundleがない場合（undefinedの場合も？）
+2. BundleState.loadingがtrueの時
+
+```TypeScript
+// bundlesReducer.ts
+
+interface BundleState {
+  [key: string]: {
+    code: string;
+    err: strong;
+    loading: boolean;
+  }
+  // NOTE: new added
+  | undefined
+}
+```
+
+さてこうするとTypeScript的にBundleStateの変数が全てundefinedになりうると認識される
+
+```TypeScript
+// code-cell.tsx
+
+// ...
+
+const CodeCell: React.FC<CodeCellProps> = ({ cell }) => {
+  // ...
+
+  return (
+    <Resizable direction="vertical">
+      <div
+        style={{
+          height: 'calc(100% - 10px)',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <Resizable direction="horizontal">
+          <CodeEditor
+            initialValue={cell.content}
+            onChange={(value) => updateCell(cell.id, value)}
+          />
+        </Resizable>
+        // NOTE: Error: bundle is possibly undefined.
+        <Preview code={bundle.code} err={bundle.err} />
+      </div>
+    </Resizable>
+  );
+};
+
+// こうする: undefinedならpreviewを表示しない
+
+    {bundle && <Preview code={bundle.code} err={bundle.err} />}
 
 ```
+#### エラー：`React Hook useEffect has a missing dependency: 'createBundle'.`
+
+@code-cell.tsx:
+
+`React Hook useEffect has a missing dependency: 'createBundle'.`
+
+なぜこんなエラーが起こるのか：
+
+`useEffect()`の中身のコードが依存する変数を参照しているのにも関わらず、その変数が依存配列に含まれていないからである。
+
+詳しくは`./Synchronizing-with-Effects.md`に。
+
+#### `useMemo`: 依存配列に含まれていない警告の解消
+
+くたばれWindos!!!!!!!!
