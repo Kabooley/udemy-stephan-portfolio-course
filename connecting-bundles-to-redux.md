@@ -341,6 +341,127 @@ const CodeCell: React.FC<CodeCellProps> = ({ cell }) => {
 
 詳しくは`./Synchronizing-with-Effects.md`に。
 
-#### `useMemo`: 依存配列に含まれていない警告の解消
+...
 
-くたばれWindos!!!!!!!!
+とはいえなぜ`createBundle()`が警告に出るのか？
+
+```TypeScript
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      createBundle(cell.id, cell.content);
+    }, 750);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [cell.content, cell.id]);
+```
+
+createBundle()の結果はuseEffect内部のコードに影響しないはずでは？
+
+どうやって影響するかどうか判断すればいいだろうか。
+
+
+#### `useMemo`: 依存配列に含まれていない変数があるよの警告の解消
+
+`useEffect`の依存変数が起こす問題を解決するために`useMemo`を導入する好例：
+
+`createBundle()`を依存関係に追加したところ、
+
+useEffect()が何度も不要に呼び出され無限ループに陥っている模様。
+
+原因は間違いなく`createBundle()`のせいで、レンダリングの後に毎度`createBundle()`が変更しているらしいからだ。
+
+毎レンダリング時に`createBundle()`が別物になっていると判断されるらしい。
+
+とはいえ`createBundle()`は`useEffect()`の依存関係なのでその依存配列から取り出すわけにはいかない。
+
+```bash
+# こんな調子で無限ループになる
+# 結構なスピードで発生する
+# 
+# 毎度同じ出力が2度起こるのは開発モードの仕様である
+[CodeCell] setTimeout()
+23:09:26.986 index.ts:63 [createBundle()]
+23:09:27.007 code-cell.tsx:24 [CodeCell] setTimeout()
+23:09:27.007 index.ts:63 [createBundle()]
+23:09:27.007 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.007 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.008 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.009 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.017 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.018 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.018 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.021 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.066 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.066 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.067 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.067 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.078 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.078 code-cell.tsx:32 [CodeCell] clear setTimeout()
+23:09:27.079 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.080 code-cell.tsx:19 [CodeCell] useEffect()
+23:09:27.843 code-cell.tsx:24 [CodeCell] setTimeout()
+```
+
+そのため、`createBundle()`が毎度新しく生成されないように毎回同じ`createBundle()`を提供するようにする。
+
+ということで、初期レンダリング時に`createBundle()`を「固定」して、それ以降変更されないようにする。
+
+```Typescript
+// hooks/use-actions.ts
+import { useMemo } from 'react';
+import { useDispatch } from 'react-redux';
+import { bindActionCreators } from 'redux';
+import { actionCreators } from '../state';
+
+export const useActions = () => {
+    const dispatch = useDispatch();
+
+    return useMemo(() => {
+        return bindActionCreators(actionCreators, dispatch);
+    }, [dispatch]);
+};
+```
+
+上記のコードだと`useMemo()`を直接返すので、
+
+初期レンダリング時にuseActions()は一度`bindActionCreators()`を実行しその値を返し、
+
+以降、`dispatch`の内容に変更があった時だけ、bindActionCreators()を再度実行させ、その計算結果を返す。
+
+これで毎回`createBundle()`が新しく生成されるのを防ぐ。
+
+まとめ：
+
+- `useEffect()`にはその内部コードが依存する変数はすべて依存配列に含めなくてはならない
+- とはいえ、依存関係がそのuseEffect外部の関数だと毎度別物と判断されることがあるので無限ループに陥る
+- `useMemo()`を使って依存関係の関数を「固定」する
+
+#### Eager Bundleの追加
+
+追加できる改善その一。
+
+「アプリケーションをリロードすると初期レンダリング時にプレビューが点滅する」問題の解消。
+
+こうなる流れ：
+
+- Appリロード
+- CodeCellsの(ハードコーディングされた)生成アクションのディスパッチ
+- stateが更新されて2つの`CodeCell`が表示される
+- 各`CodeCell`で`useEffect()`が呼び出されて、750ms後に発動する関数がセットされる
+- 750ms経ち、`createBundle()`が呼び出されてコードがバンドルされる
+- バンドルコードを受け取りpreview画面に出力される
+
+この間、preview画面には何も表示されない
+
+コンポーネントの出力は次の`{bundle && <Preview />}`という条件分岐にしているから。
+
+つまり、
+
+リロードしただけなので、previewコンポーネントはバンドル結果を待つ必要性はないのであるが、現状待っているために、preview画面は少し奇妙な表示をすることになってしまっているのである。
+
+これの解消。
+
+解決策：「ユーザが実際にCellに変更を加えたときだけ、再バンドルを試みる」という仕様に変更する。
+

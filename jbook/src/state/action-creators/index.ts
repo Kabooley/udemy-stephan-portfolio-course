@@ -7,8 +7,6 @@ import {
   MoveCellAction,
   InsertCellAfterAction,
   Direction,
-  BundleStartAction,
-  BundleCompleteAction
 } from '../actions';
 import { CellTypes } from '../cell';
 import bundle from '../../bundler';
@@ -42,7 +40,7 @@ export const moveCell = (id: string, direction: Direction): MoveCellAction => {
 };
 
 export const insertCellAfter = (
-  id: string,
+  id: string | null,
   cellType: CellTypes
 ): InsertCellAfterAction => {
   return {
@@ -60,6 +58,10 @@ export const insertCellAfter = (
 // as soon as get result, dispatches it. 
 export const createBundle = (cellId: string, input: string) => {
   return async (dispatch: Dispatch<Action>) => {
+
+    // DEBUG: 
+    console.log("[createBundle()]");
+
     dispatch({
       type: ActionType.BUNDLE_START,
       payload: {

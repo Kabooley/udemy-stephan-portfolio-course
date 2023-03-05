@@ -15,11 +15,22 @@ const CodeCell: React.FC<CodeCellProps> = ({ cell }) => {
   const bundle = useTypedSelector((state) => state.bundles[cell.id]);
 
   useEffect(() => {
+    // DEBUG:
+    console.log("[CodeCell] useEffect()");
+
+
     const timer = setTimeout(async () => {
+      // DEBUG:
+      console.log("[CodeCell] setTimeout()");
+
+
       createBundle(cell.id, cell.content);
     }, 750);
 
     return () => {
+      // DEBUG:
+      console.log("[CodeCell] clear setTimeout()");
+
       clearTimeout(timer);
     };
   }, [cell.content, cell.id, createBundle]);
