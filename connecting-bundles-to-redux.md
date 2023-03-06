@@ -614,7 +614,7 @@ return (
   とはいえ、
 - importなしのJSコードならおそらくめちゃ早いだろう
 - importありだと時間はかかるだろう
-- 2秒以上かかるバンドルだったら、そのバンドルプロセスはきっと長時間かかるだろう
+- 0.2秒以上かかるバンドルだったら、そのバンドルプロセスはきっと長時間かかるだろう
 
 という推測は概ね外れないだろうということで、見積もりを出すための複雑なJSコードを書くよりも簡単な解決策を採用しよう。
 
@@ -628,3 +628,56 @@ return (
 
 プログレスバーをフェードイン・フェードアウトするためのアニメーションを設ける。
 
+このアニメーションで`opacity`を操作することによって、
+
+ある時間までは`opacity: 0`、ある時間からは`opacity: 0より上`にすれば
+
+短い時間のインターバル中は透明なままでいてくれるし、
+
+時間がかかれば透明度が下がってくれるので
+
+ユーザに与える見た目は期待通りになってくれるはず。
+
+#### 背景を白いまま固定する
+
+アニメーションを加えたことによってpreviewコンポーネントの背景が時々暗くなる。
+
+これの解決。
+
+アニメーションを設けられている要素をラップする要素を設けて、そいつの背景を白くするという手法。
+
+```TypeScript
+// NOTE: added div.progress-wrapper
+
+  return (
+    <Resizable direction="vertical">
+      <div
+        style={{
+          height: 'calc(100% - 10px)',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <Resizable direction="horizontal">
+          <CodeEditor
+            initialValue={cell.content}
+            onChange={(value) => updateCell(cell.id, value)}
+          />
+        </Resizable>
+        <div className="progress-wrapper">
+        {
+            !bundle || bundle.loading
+            ? (
+                <div className="progress-cover">
+                  <progress className="progress is-small is-primary" max="100" >
+                      Loading
+                  </progress>
+                </div>
+              )
+            : <Preview code={bundle.code} err={bundle.err} />
+          }
+          </div>
+      </div>
+    </Resizable>
+  );
+```
