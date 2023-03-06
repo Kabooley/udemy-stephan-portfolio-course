@@ -465,3 +465,166 @@ export const useActions = () => {
 
 解決策：「ユーザが実際にCellに変更を加えたときだけ、再バンドルを試みる」という仕様に変更する。
 
+ 
+もしも`bundle`がundefinedなら`setTimeout`抜きで即座に`createBundle()`を呼び出す。
+
+```TypeScript
+// code-cell.tsx
+
+  const { updateCell, createBundle } = useActions();
+  const bundle = useTypedSelector((state) => state.bundles[cell.id]);
+
+  useEffect(() => {
+    // NOTE: add this conditional.
+    if(!bundle) {
+        createBundle(cell.id, cell.content);
+        return;
+    }
+
+    const timer = setTimeout(async () => {
+      createBundle(cell.id, cell.content);
+    }, 750);
+
+    return () => {
+      clearTimeout(timer);
+    };
+    // NOTE: Shut the eslint up
+    // 
+  }, [cell.content, cell.id, createBundle]);
+
+```
+
+これで点滅しなくなった。
+
+ただし、次の問題。
+
+`bundle`変数がuseEffect()の新たな依存変数になるので、依存配列に含めるようにしなくてはならなくなった。
+
+今回はeslintを黙らせる方向で解決することにした見たい。
+
+## Showing Loading Message 
+
+ユーザ入力コードが変換中である時間に表示するローディング画面を実装する。
+
+```TypeScript
+interface bundle {
+    loading: boolean;   // ローディング判定地
+    code: string;
+    err: string;
+} | undefined;
+```
+
+今のところすでにloadingの実装は済んでいるのであとは表示するだけ。
+
+```TypeScript
+// code-cell.ts
+
+return (
+    <Resizable direction="vertical">
+      <div
+        style={{
+          height: 'calc(100% - 10px)',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <Resizable direction="horizontal">
+          <CodeEditor
+            initialValue={cell.content}
+            onChange={(value) => updateCell(cell.id, value)}
+          />
+        </Resizable>
+        // NOTE: new added this conditional.
+        {
+            !bundle || bundle.loading
+            ? <div>Loading...</div>
+            : <Preview code={bundle.code} err={bundle.err} />
+        }
+      </div>
+    </Resizable>
+  );
+```
+
+#### styling loading process bar
+
+HTMLの`progress`タグを設ける。
+
+```TypeScript
+// code-cell.ts
+import './code-cell.css';
+
+return (
+    <Resizable direction="vertical">
+      <div
+        style={{
+          height: 'calc(100% - 10px)',
+          display: 'flex',
+          flexDirection: 'row',
+        }}
+      >
+        <Resizable direction="horizontal">
+          <CodeEditor
+            initialValue={cell.content}
+            onChange={(value) => updateCell(cell.id, value)}
+          />
+        </Resizable>
+        // NOTE: new added this conditional.
+        {
+            !bundle || bundle.loading
+            ? <div className="progress-cover">
+                <progress className="progress is-small is-primary" max="100" >
+                    Loading
+                </progress>
+              </div>
+            : <Preview code={bundle.code} err={bundle.err} />
+        }
+      </div>
+    </Resizable>
+  );
+```
+
+```css
+/* code-cell.css */
+.progress-cover {
+    height: 100%;
+    flex-grow: 1;
+    background-color: white;
+    display: flex;
+    align-items: center;
+    padding-left: 10%;
+    padding-right: 10%;
+}
+```
+
+プログレスバーが表示されるようになった。
+
+しかし、現状だとユーザがエディタに変更を加えて、手をわずかに止め、また変更を加えるというような操作をすると
+
+プレビュー画面に一瞬何かが移って消えるみたいな表示が繰り返されるため、
+
+ユーザを混乱させる原因になりかねない。
+
+そのためローディング画面の表示は、バンドルにかかる時間が長くなると予想したときにのみ表示するようにする。
+
+#### Bundleにかかる時間の見積もり
+
+いつプログレスバーを表示するべきか
+
+- ユーザが入力したコードをバンドルするのにかかる時間はわからない
+  とはいえ、
+- importなしのJSコードならおそらくめちゃ早いだろう
+- importありだと時間はかかるだろう
+- 2秒以上かかるバンドルだったら、そのバンドルプロセスはきっと長時間かかるだろう
+
+という推測は概ね外れないだろうということで、見積もりを出すための複雑なJSコードを書くよりも簡単な解決策を採用しよう。
+
+次のようにする。
+
+> そこで、アニメーションに少し時間をかけることにします。プログレスバーを表示するときはいつでも、プログレスバーの容量を徐々に変化させ、時間をかけて送り込むことにします。つまり、非常に優しく、非常にゆっくりとフェードインしていくのです。これは、このルールを考慮したもので、「長くなればなるほど、長いバンドリングの試みになる可能性が高くなる」と言うことです。だから、プログレスバーを表示したいのです。そこで、この説明文は最も効果的なものではないので、一番いいのは、非常に素早く休憩して、次のビデオに戻って、トランジションやアニメーションをちょっとだけ入れてみることです。そして、この仮定が実際にかなりの数のケースでうまく機能することがすぐにわかると思います。
+
+うんわからん。実際にハンズオンで理解しよう。
+
+#### Animation: Fading in the Progress bar
+
+プログレスバーをフェードイン・フェードアウトするためのアニメーションを設ける。
+
