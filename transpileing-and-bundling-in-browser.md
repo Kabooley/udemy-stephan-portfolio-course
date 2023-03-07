@@ -872,7 +872,6 @@ onResolve のコールバックで参照できるようにすれば
 
 
 
-
 --- 
 
 # Development Note
