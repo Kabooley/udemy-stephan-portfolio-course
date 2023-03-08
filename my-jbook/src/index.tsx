@@ -1,9 +1,12 @@
 import ReactDOM from 'react-dom';
+import Editor from './components/editor';
 
 
 const App = () => {
     return (
-        <div>App</div>
+        <div>
+            <Editor />
+        </div>
     );
 };
 
