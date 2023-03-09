@@ -124,11 +124,6 @@ https://esbuild.github.io/api/#browser
 時間があれば。
 
 
-## 実装
-
-## Bundler
-
-esbuild-wasm:
 
 #### `startSErvice` vs. `initialize`
 
@@ -274,4 +269,159 @@ for (let out of result.outputFiles) {
 formで囲うのが当たり前なのかどうかってどうしたら判断できるでしょうか
 
 ひとまずボタンで変換処理をするようにするので一旦端に於いておく
+
+
+## 実装
+
+## Bundlerの実装
+
+#### トランスパイリング実装
+
+まとめ：
+
+- `esbuild.initialize()`には`node_modules/esbuild-wasm/esbuild.wasm`が必要だがブラウザからは見えないので`public`ディレクトリ以下に配置する。
+- `esbuild.initialize()`は必ずesbuild APIを使う前に実行して正常起動したことを確認すること。
+
+次のコードで`esbuild.initialize()`がエラーを起こす。
+
+`Wasm decoding failed: expected magic word 00 61 73 6d, found 3c 21 44 4f @+0`
+
+といった内容の。
+
+```TypeScript
+// src/bundler/index.ts
+import * as esbuild from 'esbuild-wasm';
+
+interface iBuildResult {
+    code: string;
+    err: string;
+};
+
+
+const initializeOptions: esbuild.InitializeOptions = {
+    // このURLが間違っているのだと思う
+    wasmURL:  './node_modules/esbuild-wasm/esbuild.wasm',
+    worker: true
+};
+
+export const bundler = async (code: string): Promise<iBuildResult> => {
+    try {
+        
+        // DEBUG: 
+        console.log("[bundler]");
+
+        // 必ずesbuildAPIを使い始める前に呼出す
+        // 
+        // TODO: errorを出している
+        await esbuild.initialize(initializeOptions);
+    
+        // DEBUG: 
+        console.log("[bundler] parameter");
+        console.log(code);
+    
+        // For a while, test with this transform code.
+        const result = await esbuild.transform(code, {
+            loader: 'jsx',
+            target: 'es2015'
+        });
+
+        // DEBUG:
+        console.log(result);
+
+        return {
+            code: result.code,
+            err: ''
+        };
+    }
+    catch(e) {
+        if(e instanceof Error) {
+            return {
+              code: '',
+              err: e.message,
+            };
+          }
+          else throw e;
+    }
+};
+```
+これはwebassemblyの初期化に失敗したことを示すエラーで、
+
+要はそんなURLは存在しないから、４０４notfoundのHTMLが返されているので
+
+esbuild.initialize()が想定するバイナリじゃなよと言っている。
+
+これは講義でわざわざnode_modules/esbuild-wasm/esbuild.wasmをコピーペーストしてpublicディレクトリの上に置かないと
+
+ブラウザからは見えないことを示す。
+
+なので、`.wasm`ファイルをpublic以下に配置する。
+
+#### `esbuild.build()`
+
+今`esbuild.transform()`を動かすことができたので、
+
+`esbuild.build()`も挙動を確認する。
+
+すると発生するエラー：
+
+` [ERROR] Cannot read directory ".": not implemented on js`
+
+```TypeScript
+import * as esbuild from 'esbuild-wasm';
+
+interface iBuildResult {
+    code: string;
+    err: string;
+};
+
+
+const initializeOptions: esbuild.InitializeOptions = {
+    // `public/esbuild.wasm`
+    wasmURL:  '/esbuild.wasm',
+    worker: true
+};
+
+const buildOptions: esbuild.BuildOptions = {
+    entryPoints: ['index.js'],
+    // explicitly specify bundle: true
+    bundle: true,
+    // To not to write result in filesystem.
+    write: false,
+    // To use plugins which solves import modules.
+    plugins: [],
+};
+
+export const bundler = async (code: string): Promise<iBuildResult> => {
+    try {
+        
+        // DEBUG: 
+        console.log("[bundler]");
+
+        await esbuild.initialize(initializeOptions);
+
+       const result = await esbuild.build(buildOptions);
+
+       if(result === undefined) throw new Error;
+
+       // DEBUG:
+       for (let out of result.outputFiles!) {
+         console.log(out.path, out.contents, out.text)
+       };
+
+       return {
+        code: result.outputFiles![0].text,
+        err: ''
+       }
+    }
+    catch(e) {
+        if(e instanceof Error) {
+            return {
+              code: '',
+              err: e.message,
+            };
+          }
+          else throw e;
+    }
+};
+```
 
