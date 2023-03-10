@@ -15,6 +15,7 @@ const Editor = () => {
     const onClick = async () => {
         // DEBUG: 
         console.log("[Editor] onClick");
+        console.log(input);
 
         const result = await bundler(input);
 

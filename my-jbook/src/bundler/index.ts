@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild-wasm';
+import { unpkgPathPlugin } from './plugins';
 
 interface iBuildResult {
     code: string;
@@ -7,34 +8,41 @@ interface iBuildResult {
 
 
 const initializeOptions: esbuild.InitializeOptions = {
-    // このURLが間違っているのだと思う
-    // wasmURL:  './node_modules/esbuild-wasm/esbuild.wasm',
     wasmURL:  '/esbuild.wasm',
     worker: true
 };
 
-const buildOptions: esbuild.BuildOptions = {
-    entryPoints: ['index.js'],
-    // explicitly specify bundle: true
-    bundle: true,
-    // To not to write result in filesystem.
-    write: false,
-    // To use plugins which solves import modules.
-    // plugins: [],
-};
+let isInitialized: boolean = false;
 
-export const bundler = async (code: string): Promise<iBuildResult> => {
+
+/**
+ * @param { string } rawCode - The code that user typed and submitted.
+ * 
+ * */ 
+export const bundler = async (rawCode: string): Promise<iBuildResult> => {
     try {
         
         // DEBUG: 
         console.log("[bundler]");
+        console.log(rawCode);
 
         // 必ずesbuildAPIを使い始める前に呼出す
-        // 
-        // TODO: errorを出している
-        await esbuild.initialize(initializeOptions);
+        if(!isInitialized) {
+            await esbuild.initialize(initializeOptions);
+            isInitialized = true;
+        }
 
-        // Filesystemはないのでネットワーク上から必要な依存関係を取得してくる
+        const buildOptions: esbuild.BuildOptions = {
+            entryPoints: ['index.js'],
+            // explicitly specify bundle: true
+            bundle: true,
+            // To not to write result in filesystem.
+            write: false,
+            // To use plugins which solves import modules.
+            plugins: [unpkgPathPlugin(rawCode)],
+        };
+        
+
        const result = await esbuild.build(buildOptions);
 
        if(result === undefined) throw new Error;
@@ -48,25 +56,6 @@ export const bundler = async (code: string): Promise<iBuildResult> => {
         code: result.outputFiles![0].text,
         err: ''
        }
-
-    
-        // // DEBUG: 
-        // console.log("[bundler] parameter");
-        // console.log(code);
-    
-        // // For a while, test with this transform code.
-        // const result = await esbuild.transform(code, {
-        //     loader: 'jsx',
-        //     target: 'es2015'
-        // });
-
-        // // DEBUG:
-        // console.log(result);
-
-        // return {
-        //     code: result.code,
-        //     err: ''
-        // };
     }
     catch(e) {
         if(e instanceof Error) {

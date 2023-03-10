@@ -1,4 +1,4 @@
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import Editor from './components/editor';
 
 
@@ -10,4 +10,5 @@ const App = () => {
     );
 };
 
-ReactDOM.render(<App />, document.querySelector('#root'));
+const root = createRoot(document.getElementById('root')!);
+root.render(<App />);

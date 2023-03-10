@@ -275,6 +275,12 @@ formで囲うのが当たり前なのかどうかってどうしたら判断で�
 
 ## Bundlerの実装
 
+#### `esbuild.initialize()`
+
+- esbuild APIを使う前に必ず呼び出し、その応答が正常であることを確認すること
+- **呼出は一度だけ！**
+
+
 #### トランスパイリング実装
 
 まとめ：
@@ -425,3 +431,191 @@ export const bundler = async (code: string): Promise<iBuildResult> => {
 };
 ```
 
+エラーの内容と発生する原因：
+
+- 内容：ファイルシステムがないから探せない
+
+- 原因：モジュールの捜索は通常Filesystem上で行われるが、ここはブラウザ上である
+- 原因：ユーザが入力したimportで取り込もうとしているモジュールは、node_modules/等があるわけではないのでそもそもローカルに存在しない
+
+次の課題：
+
+- モジュールの捜索にプラグインを導入してモジュールの捜索へ介入する
+- モジュールの捜索をfilesystemからではなくネットワーク上から取得するようにする
+
+
+#### プラグインの導入
+
+#### [自習] esbuild プラグイン
+
+https://esbuild.github.io/plugins/
+
+> plugins APIはビルドプロセスの各所へコードを追加することができる。
+> `build` APIにのみ適用できて、`transform`には適用できない。
+
+esbuildプラグインは`name`と`setup`の2つのプロパティからなるオブジェクトである。
+
+詳しくは公式見た方がヒントを得やすい。
+
+#### 相対パスの解決
+
+`esbuild.onResolve()`は正規表現で指定したフィルターに一致するパスを見つけたときに、
+
+どのようにそのパスを解決するのかを指定する。
+
+```JavaScript
+// esbuild.onResolve()
+
+// 抽象的に表現するとこうなる
+build.onResolve(
+  {filter: string /* コールバックを実行させたいpathを正規表現で指定する */},
+  (args: any/* 解析中のモジュールに記述されているモジュールパスなど */) => {
+
+    // argsをつかって名前解決する手段をカスタマイズ
+
+    // 戻り値でfilterでヒットしたpathに対してはこのようにpathを解決せよという
+    // 解決方法をかえす
+    return {
+      path: string/* filterでヒットしたpathはここにあるというpathを記述する*/,
+      namespace: string /* 任意でそのpathはこのnamespaceに含めると指定させる */
+    }
+  }
+);
+```
+
+
+> `onLoad`についているコールバック関数は「external」として認識されていないpath/namespaceの一意のすべてのペアに対して実行される。
+
+その役割はモジュールの中身を返すこととどうやってそれらを得るかの機能を提供することである。
+
+基本的にfilterで指定しない限りは全てのパスに対してonLoadが実行されることになると思う。
+
+指定することでそのペアに一致するモジュールはonLoadのコールバックの処理に従ってその中身を取り出される。
+
+ひとまず、エントリポイントのindex.jsをonResolve, onLoadできるようにした
+
+```TypeScript
+// src/bundler/index.ts
+
+import * as esbuild from 'esbuild-wasm';
+import { unpkgPathPlugin } from './plugins';
+
+interface iBuildResult {
+    code: string;
+    err: string;
+};
+
+const initializeOptions: esbuild.InitializeOptions = {
+    wasmURL:  '/esbuild.wasm',
+    worker: true
+};
+
+let isInitialized: boolean = false;
+
+
+/**
+ * @param { string } rawCode - The code that user typed and submitted.
+ * 
+ * */ 
+export const bundler = async (rawCode: string): Promise<iBuildResult> => {
+    try {
+        
+        // DEBUG: 
+        console.log("[bundler]");
+        console.log(rawCode);
+
+        // 必ずesbuildAPIを使い始める前に呼出す
+        if(!isInitialized) {
+            await esbuild.initialize(initializeOptions);
+            isInitialized = true;
+        }
+
+        const buildOptions: esbuild.BuildOptions = {
+            entryPoints: ['index.js'],
+            // explicitly specify bundle: true
+            bundle: true,
+            // To not to write result in filesystem.
+            write: false,
+            // To use plugins which solves import modules.
+            plugins: [unpkgPathPlugin(rawCode)],
+        };
+        
+
+       const result = await esbuild.build(buildOptions);
+
+       if(result === undefined) throw new Error;
+
+       return {
+        code: result.outputFiles![0].text,
+        err: ''
+       }
+    }
+    catch(e) {
+        if(e instanceof Error) {
+            return {
+              code: '',
+              err: e.message,
+            };
+          }
+          else throw e;
+    }
+};
+```
+
+```TypeScript
+// src/bundler/plugins/index.ts
+import * as esbuild from 'esbuild-wasm';
+
+/**
+ * @param {string} inputCode - ユーザがエディタに入力したコード
+ * 
+ * */ 
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
+
+            // -- on resolve --
+
+            
+            build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                if(args.path === 'index.js') {
+                    return {path: args.path, namespace: 'a'};
+                }
+            });
+
+            // -- on load --
+
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+
+                return {
+                    loader: 'jsx',
+                    contents: inputCode
+                }
+            });
+        }
+    }
+}
+```
+
+#### `import`文の解決
+
+unpkg.comを利用し始める。
+
+ということでモジュールを取得し始めるよ。
+
+onResolveは`http://unpkg.com/${package-name}`のURLをesbuildのonResolveの戻り値のオブジェクトに渡せばよい。
+
+onLoadはそのURLをfetchすればよい。
+
+ひとまず、いずれのパッケージも`/.*/`のフィルタリングでヒットするはずということで...
+
+## TEST CODE
+
+```JavaScript
+import * as tinyTestPackage from 'tiny-test-pkg';
+
+const app = () => {
+  console.log(tinyTestPackage);
+};
+```
