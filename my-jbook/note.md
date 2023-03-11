@@ -619,3 +619,148 @@ const app = () => {
   console.log(tinyTestPackage);
 };
 ```
+
+## import/require文のないモジュールを取得する
+
+```TypeScript
+import * as esbuild from 'esbuild-wasm';
+import axios from 'axios';
+
+
+/**
+ * @param {string} inputCode - ユーザがエディタに入力したコード
+ * 
+ * 
+ * */ 
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
+
+            // -- on resolve --
+
+            // エントリポイントのindex.js専用
+            build.onResolve({filter: /(^index\.js$)/}, (args: esbuild.OnResolveArgs) => {
+                if(args.path === 'index.js') {
+                    return {path: args.path, namespace: 'a'};
+                }
+            });
+
+            // npmパッケージ他の解決
+            // 
+            build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onResolve /.*/: ");
+                console.log(args.path);
+
+                return {
+                    namespace: 'a',
+                    path: `https://unpkg.com/${args.path}`
+                };
+            });
+
+            // -- on load --
+
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+                
+                return {
+                    loader: 'jsx',
+                    contents: inputCode
+                }
+            });
+
+            build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+                const { data, request } = await axios.get(args.path);
+
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
+                console.log(data);
+                console.log(request);
+
+                return {
+                    loader: 'jsx',
+                    contents: data
+                }
+            });
+        }
+    }
+}
+```
+
+取得はできた。
+
+#### import/require文を含むモジュールの取得
+
+unpkg経由で取得するパッケージのファイがimport/require文を含んでいたら。
+
+
+```JavaScript
+import * as mediumTestPackage from 'medium-test-pkg';
+
+const app = () => {
+  console.log(mediumTestPackage);
+};
+```
+
+
+今のままで実行すると...
+
+- `medium-test-pkg/index.js`の解決
+- `medium-test-pkg/index.js`のロード
+- `medium-test-pkg/index.js`内の`const toUpperCase = require('./utils')`の発見
+- `'./utils'`が解決できないのエラー
+
+エラーが起こる原因：
+
+onLoad()が次のパスで取得しようとしているため。`https://unpkg.com/./utils`
+
+ならば次のようにできればいいのだよね？
+
+`https://unpkg.com/./utils` --> `https://unpkg.com/medium-test-pkg/utils`
+
+つまり、
+
+- `http://unpkg.com/` + `${package-name}/${sub-directory}`という形式
+- `./`または`../`を見つけたときにという条件
+
+現状の流れ：
+
+```bash
+# onResolve index.js
+# onLoad index.js
+# onResolve `import * as mediumTestPackage` from 'medium-test-pkg'
+args.path: medium-test-package
+args:
+{
+  importer: "index.js"
+  kind: "import-statement"
+  namespace: "a"
+  path: "medium-test-pkg"
+  pluginData: undefined
+  resolveDir: ""
+}
+returned path: https://unpkg.com/medium-test-pkg
+# onLoad medium-test-pkg
+args: 
+{
+  namespace: "a"
+  path: "https://unpkg.com/medium-test-pkg"
+  pluginData: undefined
+  suffix: ""
+}
+
+# onResolve `const toUpperCase = require('./utils')`
+args: 
+{
+  importer: "https://unpkg.com/medium-test-pkg"
+  kind: "require-call"
+  namespace: "a"
+  path: "./utils"
+  pluginData: undefined
+  resolveDir: ""
+}
+# onLoad index.js
+# onResolve index.js
+# onLoad index.js
+
+```

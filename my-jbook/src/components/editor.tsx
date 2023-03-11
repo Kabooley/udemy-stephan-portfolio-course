@@ -9,20 +9,20 @@ const Editor = () => {
 
     useEffect(() => {
         // DEBUG: 
-        console.log("[Editor] effect");
+        // console.log("[Editor] effect");
     }, [])
 
     const onClick = async () => {
         // DEBUG: 
-        console.log("[Editor] onClick");
-        console.log(input);
+        // console.log("[Editor] onClick");
+        // console.log(input);
 
         const result = await bundler(input);
 
         
-        // DEBUG: 
-        console.log("[Editor] result:");
-        console.log(result);
+        // // DEBUG: 
+        // console.log("[Editor] result:");
+        // console.log(result);
 
         setCode(result.code);
     };

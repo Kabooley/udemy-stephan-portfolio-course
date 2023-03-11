@@ -24,6 +24,11 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
             // npmパッケージ他の解決
             // 
             build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onResolve /.*/: ");
+                console.log(args.path);
+                console.log(args);
+
                 return {
                     namespace: 'a',
                     path: `https://unpkg.com/${args.path}`
@@ -37,6 +42,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
             // -- on load --
 
             build.onLoad({filter: /(^index\.js$)/ }, () => {
+                
                 return {
                     loader: 'jsx',
                     contents: inputCode
@@ -51,8 +57,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
-                console.log(data);
-                console.log(request);
+                console.log(args);
 
                 return {
                     loader: 'jsx',

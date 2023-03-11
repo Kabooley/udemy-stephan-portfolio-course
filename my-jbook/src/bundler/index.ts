@@ -23,8 +23,8 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
     try {
         
         // DEBUG: 
-        console.log("[bundler]");
-        console.log(rawCode);
+        // console.log("[bundler]");
+        // console.log(rawCode);
 
         // 必ずesbuildAPIを使い始める前に呼出す
         if(!isInitialized) {
@@ -47,10 +47,10 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
 
        if(result === undefined) throw new Error;
 
-       // DEBUG:
-       for (let out of result.outputFiles!) {
-         console.log(out.path, out.contents, out.text)
-       };
+    //    // DEBUG:
+    //    for (let out of result.outputFiles!) {
+    //      console.log(out.path, out.contents, out.text)
+    //    };
 
        return {
         code: result.outputFiles![0].text,
