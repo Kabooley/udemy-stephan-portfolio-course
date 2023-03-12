@@ -789,3 +789,23 @@ https://esbuild.github.io/plugins/#on-load-results
 そのモジュール内での`esbuild.onResolve()`の引数で`resolveDir`を受け取り、
 
 パッケージ名/path名で解決できるようになる
+
+- index.jsで`import mediumTestPackage from 'medium-test-pkg'`
+
+- onResolveで`path: http://unpkg.com/medium-test-pkg`
+
+- onLoadで`path: http://unpkg.com/medium-test-pkg`をfetch()してコンテンツを取得する
+
+- esbuildがコンテンツの中身をパースする
+
+- onResolveで`import toUpperCase from './utils'`を見つける  <--- こいつをうまいこと解決したいと
+
+なのでその前の時点のonLoad()でresolveDirを指定する
+
+```TypeScript
+const pp = new URL("./utils", "https://unpkg.com" + "/medium-test-pkg" + '/');
+
+// これをつかうと
+// pp.href === 'https://unpkg.com/medium-test-pkg/utils'になる
+```
+

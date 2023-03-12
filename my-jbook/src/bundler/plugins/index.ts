@@ -29,6 +29,15 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 console.log(args.path);
                 console.log(args);
 
+                if(args.resolveDir.length) {
+                    // TODO: note.md参考に
+                    return {
+                        namespace: 'a',
+                        path: `https://unpkg.com${args.resolveDir}/${args.path}`
+                    };
+
+                }
+
                 return {
                     namespace: 'a',
                     path: `https://unpkg.com/${args.path}`
@@ -52,8 +61,12 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
             // npmパッケージの解決
             // 
             // so far so good.
+            // 
+            // 相対パスの解決のためにresolveDirで解決済のディレクトリを登録する
             build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
                 const { data, request } = await axios.get(args.path);
+
+                const moduleName = new URL(args.path).pathname;
 
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
@@ -61,7 +74,8 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
                 return {
                     loader: 'jsx',
-                    contents: data
+                    contents: data,
+                    resolveDir: moduleName
                 }
             });
         }
