@@ -4,6 +4,7 @@
 
 ## 目次
 
+- [自習](#自習)
 - [実装](#実装)
 
 ## ブラウザでトランスパイリング、バンドリング
@@ -21,7 +22,9 @@
 
 普通バンドリングは開発中に使うもので、アプリケーションの機能として使う場合常にブラウザで使うことを念頭に置かなくてはならない。
 
-## [自習] Webpack Concepts
+## 自習
+
+#### Webpack Concepts
 
 https://webpack.js.org/concepts/
 
@@ -101,7 +104,7 @@ module.exports = {
 
 開発モード化プロダクトモードか指定する
 
-## [自習] ESbuild
+#### ESbuild
 
 #### WASM Version
 
@@ -125,7 +128,7 @@ https://esbuild.github.io/api/#browser
 
 
 
-#### `startSErvice` vs. `initialize`
+#### `startService` vs. `initialize`
 
 https://stackoverflow.com/a/66586893
 
@@ -263,14 +266,6 @@ for (let out of result.outputFiles) {
 `write: false`としておけば上記のように値としてビルド結果のコードを取得できるということかしら？
 
 
-
-#### Editor
-
-formで囲うのが当たり前なのかどうかってどうしたら判断できるでしょうか
-
-ひとまずボタンで変換処理をするようにするので一旦端に於いておく
-
-
 ## 実装
 
 ## Bundlerの実装
@@ -362,13 +357,13 @@ esbuild.initialize()が想定するバイナリじゃなよと言っている。
 
 なので、`.wasm`ファイルをpublic以下に配置する。
 
-#### `esbuild.build()`
+#### ビルド機能の実装 `esbuild.build()`
 
-今`esbuild.transform()`を動かすことができたので、
+問題： 現状、ビルドはできない。
 
-`esbuild.build()`も挙動を確認する。
+原因： アプリケーションはブラウザ上で実行されているが、ブラウザにファイルシステムはなく、esbuildは通常ファイルシステムがあることを前提にビルドする市区無だからである。
 
-すると発生するエラー：
+`esbuild.build()`を実行すると発生するエラー：
 
 ` [ERROR] Cannot read directory ".": not implemented on js`
 
@@ -431,20 +426,18 @@ export const bundler = async (code: string): Promise<iBuildResult> => {
 };
 ```
 
-エラーの内容と発生する原因：
-
-- 内容：ファイルシステムがないから探せない
+エラー内容：ファイルシステムがないから探せない
 
 - 原因：モジュールの捜索は通常Filesystem上で行われるが、ここはブラウザ上である
 - 原因：ユーザが入力したimportで取り込もうとしているモジュールは、node_modules/等があるわけではないのでそもそもローカルに存在しない
 
-次の課題：
+解決策：plguinsを利用する。
 
-- モジュールの捜索にプラグインを導入してモジュールの捜索へ介入する
-- モジュールの捜索をfilesystemからではなくネットワーク上から取得するようにする
+esbuildのpluginsを使えば、
 
+モジュールのパス解決をカスタマイズすることができるためファイルシステムがない環境において、たとえばネットワークから取得するといった機能を追加することができる。
 
-#### プラグインの導入
+## プラグインの導入
 
 #### [自習] esbuild プラグイン
 
@@ -457,11 +450,15 @@ esbuildプラグインは`name`と`setup`の2つのプロパティからなる�
 
 詳しくは公式見た方がヒントを得やすい。
 
-#### 相対パスの解決
+#### 要約 esbuildプラグインのパス解決とモジュールの取得
 
-`esbuild.onResolve()`は正規表現で指定したフィルターに一致するパスを見つけたときに、
+`esbuild.onResolve()`:
 
-どのようにそのパスを解決するのかを指定する。
+`filter`に一致したパスを見つけたときに、パス解決手段をカスタマイズして、
+
+そのパスはこうやって解決してくださいという内容のオブジェクトを返すことで
+
+esbuildの処理に注文を付けるのである。
 
 ```JavaScript
 // esbuild.onResolve()
@@ -471,10 +468,10 @@ build.onResolve(
   {filter: string /* コールバックを実行させたいpathを正規表現で指定する */},
   (args: any/* 解析中のモジュールに記述されているモジュールパスなど */) => {
 
-    // argsをつかって名前解決する手段をカスタマイズ
+    // argsの内容を利用するなどして名前解決する手段をカスタマイズ
 
     // 戻り値でfilterでヒットしたpathに対してはこのようにpathを解決せよという
-    // 解決方法をかえす
+    // esbuildへの注文内容をかえす
     return {
       path: string/* filterでヒットしたpathはここにあるというpathを記述する*/,
       namespace: string /* 任意でそのpathはこのnamespaceに含めると指定させる */
@@ -483,12 +480,15 @@ build.onResolve(
 );
 ```
 
+`esbuild.onLoad()`:
 
 > `onLoad`についているコールバック関数は「external」として認識されていないpath/namespaceの一意のすべてのペアに対して実行される。
 
 その役割はモジュールの中身を返すこととどうやってそれらを得るかの機能を提供することである。
 
 基本的にfilterで指定しない限りは全てのパスに対してonLoadが実行されることになると思う。
+
+(つまり基本的にfilterなしでの利用はパフォーマンス上あり得ない)
 
 指定することでそのペアに一致するモジュールはonLoadのコールバックの処理に従ってその中身を取り出される。
 
@@ -610,7 +610,9 @@ onLoadはそのURLをfetchすればよい。
 
 ひとまず、いずれのパッケージも`/.*/`のフィルタリングでヒットするはずということで...
 
-## TEST CODE
+#### import/require文のないモジュールを取得する
+
+テストコード：
 
 ```JavaScript
 import * as tinyTestPackage from 'tiny-test-pkg';
@@ -620,7 +622,6 @@ const app = () => {
 };
 ```
 
-## import/require文のないモジュールを取得する
 
 ```TypeScript
 import * as esbuild from 'esbuild-wasm';
@@ -689,10 +690,14 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
 取得はできた。
 
-#### import/require文を含むモジュールの取得
 
-unpkg経由で取得するパッケージのファイがimport/require文を含んでいたら。
+#### 相対パスの解決
 
+問題：現状のコードだと相対パスが解決できない。
+
+今、unpkg経由で取得するパッケージのファイがimport/require文を含んでいたらエラーが起こる。
+
+テストコード：
 
 ```JavaScript
 import * as mediumTestPackage from 'medium-test-pkg';
@@ -702,70 +707,103 @@ const app = () => {
 };
 ```
 
+原因：import文の相対パスをそのまま解決パスとして使っているからである。
 
-今のままで実行すると...
+```TypeScript
+// src/bundler/plugins/index.ts
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
 
-- `medium-test-pkg/index.js`の解決
-- `medium-test-pkg/index.js`のロード
-- `medium-test-pkg/index.js`内の`const toUpperCase = require('./utils')`の発見
-- `'./utils'`が解決できないのエラー
+            build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                return {
+                    namespace: 'a',
+                    path: args.path
+                };
+            });
 
-エラーが起こる原因：
+            
+            build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+                const { data, request } = await axios.get(args.path);
+                return {
+                    loader: 'jsx',
+                    contents: data,
+                }
+            });
 
-onLoad()が次のパスで取得しようとしているため。`https://unpkg.com/./utils`
+            build.onResolve({filter: /(^index\.js$)/}, (args: esbuild.OnResolveArgs) => {
+                // ...
+            });
 
-ならば次のようにできればいいのだよね？
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+              // ...
+            });
 
-`https://unpkg.com/./utils` --> `https://unpkg.com/medium-test-pkg/utils`
-
-つまり、
-
-- `http://unpkg.com/` + `${package-name}/${sub-directory}`という形式
-- `./`または`../`を見つけたときにという条件
-
-現状の流れ：
-
-```bash
-# onResolve index.js
-# onLoad index.js
-# onResolve `import * as mediumTestPackage` from 'medium-test-pkg'
-args.path: medium-test-package
-args:
-{
-  importer: "index.js"
-  kind: "import-statement"
-  namespace: "a"
-  path: "medium-test-pkg"
-  pluginData: undefined
-  resolveDir: ""
+        }
+    }
 }
-returned path: https://unpkg.com/medium-test-pkg
-# onLoad medium-test-pkg
-args: 
-{
-  namespace: "a"
-  path: "https://unpkg.com/medium-test-pkg"
-  pluginData: undefined
-  suffix: ""
-}
-
-# onResolve `const toUpperCase = require('./utils')`
-args: 
-{
-  importer: "https://unpkg.com/medium-test-pkg"
-  kind: "require-call"
-  namespace: "a"
-  path: "./utils"
-  pluginData: undefined
-  resolveDir: ""
-}
-# onLoad index.js
-# onResolve index.js
-# onLoad index.js
-
 ```
+このままだと、
 
-#### [自習] `esbuild.OnLoadResult.resolveDir`
+パースしているファイルのimport文が`import toUpperCase from './utils'`だと、onResolve()のresolveオブジェクトが`path: "./utils"`になり、
+
+onLoad()が`http://unpkg.com/./utils`にアクセスしようとすることになる。
+
+欲しいのは`http://unpkg.com/medium-test-pkg/utils`である。
+
+なので、
+
+そのパッケージにおいて未解決の相対パスを解決するには、つねに`medium-test-pkg`をつけるようにする。
+
+解決策：`esbuild.OnLoadResult.resolveDir`と`URL`コンストラクタを使う
+
+esbuildの仕組みとして、
+
+onLoad()で`resolveDir`を指定してやると、そのモジュール内での未解決パスをonResolve()するときに、onResolve()のコールバックで受け取るオブジェクトに必ずその`resolveDir`が渡されるようになる。
+
+詳しくは以下の2つの自習内容を参照。
+
+```TypeScript
+// src/bundler/plugins/index.ts
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
+
+            build.onResolve({filter: /(^index\.js$)/}, (args: esbuild.OnResolveArgs) => {
+              // ...
+            });
+            
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+                // ...
+            });
+
+            build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                return {
+                    namespace: 'a',
+                    // this will get 'https://unpkg.com/medium-test-pkg/utils'
+                    path: new URL(args.path, 'http://unpkg.com/' + args.resolveDir + '/').href
+                };
+            });
+
+            build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+                const { data, request } = await axios.get(args.path);
+
+                return {
+                    loader: 'jsx',
+                    contents: data,
+                    // pass package name
+                    resolveDir: new URL(args.path).pathname
+                }
+            });
+        }
+    }
+}
+```
+これで相対パスが解決できるようになった。
+
+#### [自習] ESBUILD `esbuild.OnLoadResult.resolveDir`
 
 https://esbuild.github.io/plugins/#on-load-results
 
@@ -780,32 +818,305 @@ https://esbuild.github.io/plugins/#on-load-results
 
 ファイルシステムが存在しない環境であれば、`resolveDir`の値は空であり、プラグインが提供することができる。
 
-#### 相対パスの解決
 
-`resolveDir`を使ってパスの解決を図る。
+#### [自習] WEB API `URL`
 
-`esbuild.onLoad()`でパッケージのインポートをしたら、`resolveDir`にそのパッケージ名を与えることで、
+https://developer.mozilla.org/en-US/docs/Web/API/URL/URL
 
-そのモジュール内での`esbuild.onResolve()`の引数で`resolveDir`を受け取り、
+> `URL()`コンストラクタは、与えた引数で定義されるURLを表現する新規のURLオブジェクトを返す
 
-パッケージ名/path名で解決できるようになる
-
-- index.jsで`import mediumTestPackage from 'medium-test-pkg'`
-
-- onResolveで`path: http://unpkg.com/medium-test-pkg`
-
-- onLoadで`path: http://unpkg.com/medium-test-pkg`をfetch()してコンテンツを取得する
-
-- esbuildがコンテンツの中身をパースする
-
-- onResolveで`import toUpperCase from './utils'`を見つける  <--- こいつをうまいこと解決したいと
-
-なのでその前の時点のonLoad()でresolveDirを指定する
+Syntax:
 
 ```TypeScript
-const pp = new URL("./utils", "https://unpkg.com" + "/medium-test-pkg" + '/');
-
-// これをつかうと
-// pp.href === 'https://unpkg.com/medium-test-pkg/utils'になる
+new URL(
+  url: string | URL,
+  base?: string | URL | undefined
+) => URL
 ```
 
+Prameters:
+
+`url`: 
+
+> 絶対 URL または相対 URL を表す文字列または文字列化子 ( <a> 要素や <area> 要素など) を持つその他のオブジェクト。 url が相対 URL の場合、base は必須であり、ベース URL として使用されます。 url が絶対 URL の場合、指定されたベースは無視されます。
+
+`base`: 
+
+> url が相対 URL である場合に使用するベース URL を表す文字列。指定しない場合、デフォルトで未定義になります。
+
+NOTE: URLの構造メモ
+
+http://www.example.com:80/path/to/myFile.html?key1=value&key2=value2#theDocument
+
+ならば
+
+`http`:             scheme
+`www.example.com`:  domain
+`:80`:              port number
+`www.example.com:80`: Authority
+`/path/to/myFile.html`: Path to resource
+`?key1=value&key2=value2`: Parameters
+`#theDocument`: Anchor
+
+
+例を見た方が速い。
+
+```JavaScript
+// Base URLs:
+let baseUrl = "https://developer.mozilla.org";
+
+let A = new URL("/", baseUrl);
+// => 'https://developer.mozilla.org/'
+
+let B = new URL(baseUrl);
+// => 'https://developer.mozilla.org/'
+
+new URL("en-US/docs", B);
+// => 'https://developer.mozilla.org/en-US/docs'
+
+let D = new URL("/en-US/docs", B);
+// => 'https://developer.mozilla.org/en-US/docs'
+
+new URL("/en-US/docs", D);
+// => 'https://developer.mozilla.org/en-US/docs'
+
+new URL("/en-US/docs", A);
+// => 'https://developer.mozilla.org/en-US/docs'
+
+new URL("/en-US/docs", "https://developer.mozilla.org/fr-FR/toto");
+// => 'https://developer.mozilla.org/en-US/docs'
+
+// Invalid URLs:
+
+new URL("/en-US/docs", "");
+// Raises a TypeError exception as '' is not a valid URL
+
+new URL("/en-US/docs");
+// Raises a TypeError exception as '/en-US/docs' is not a valid URL
+
+// Other cases:
+
+new URL("http://www.example.com");
+// => 'http://www.example.com/'
+
+new URL("http://www.example.com", B);
+// => 'http://www.example.com/'
+
+new URL("", "https://example.com/?query=1");
+// => 'https://example.com/?query=1' (Edge before 79 removes query arguments)
+
+new URL("/a", "https://example.com/?query=1");
+// => 'https://example.com/a' (see relative URLs)
+
+new URL("//foo.com", "https://example.com");
+// => 'https://foo.com/' (see relative URLs)
+
+
+// Chrome Dev toolsで検証
+//  絶対パスを渡したとき
+$ new URL("https://www.unpkg.com/meidum-test-pkg/")
+{
+  hash: ""
+  host: "www.unpkg.com"
+  hostname: "www.unpkg.com"
+  href: "https://www.unpkg.com/meidum-test-pkg/"
+  origin: "https://www.unpkg.com"
+  password: ""
+  pathname: "/meidum-test-pkg/"
+  port: ""
+  protocol: "https:"
+  search: ""
+}
+
+// 相対パスを渡したとき
+$ const u = new URL("./utils", "https://unpkg.com/medium-test-pkg")
+{
+  hash: ""
+  host: "unpkg.com"
+  hostname: "unpkg.com"
+  href: "https://unpkg.com/utils"
+  origin: "https://unpkg.com"
+  password: ""
+  pathname: "/utils"
+  port: ""
+  protocol: "https:"
+  search: ""
+}
+
+// baseURLのリソースパスに続けて、相対パスを続けさせたいとき
+// --> リソースパスの末尾にスラッシュを必ずつける
+$ const u = new URL("./utils", "https://unpkg.com/medium-test-pkg/")
+$ u.href
+'https://unpkg.com/medium-test-pkg/utils'
+```
+
+url引数に相対パスを渡すと、baseのURLにリソースパスの末尾に
+
+  `/`がない場合:  リソースパスが相対パスに置き換わる
+  `/`がある場合:  リソースパスの後に続いて相対パスに置き換わる
+
+  いずれの場合も`./`や`../`の文字は自動的に削除される(自動的に整形されるといった方が正しいかも)。
+
+
+
+#### ネストされたモジュールパスの解決
+
+テストコード：
+
+```JavaScript
+import * as test from 'nested-test-pkg';
+
+const app = () => {
+  console.log(test);
+};
+```
+
+問題：ネストしているモジュールのパスの解決は現状できない。
+
+原因：現状、リダイレクトに対応できていないからである。
+
+イメージ図
+```
+http://unpkg.com/nested-test-pkg
+      └──────────src/
+                  ├────── index.js
+                  └────── helpers/
+                            └──────utils.js
+```
+
+エラー内容：
+
+```bash
+GET https://unpkg.com/nested-test-pkg@1.0.0/helpers/utils 404
+```
+
+実は、unpkgでモジュールをリクエストするときにリダイレクトが起こっており、
+
+要求：'http://unpkg.com/nested-test-pkg'
+
+実際：'http://unpkg.com/nested-test-pkg/src/index.js'
+
+へ飛ばされているのである。
+
+今、import文に`import XXX from './helpers/utils`というパスがあったとしたら
+
+本来'http://unpkg.com/nested-test-pkg/src/helpers/utils'で要求しなくてはならないということである。
+
+今までリダイレクトが問題にならなかった理由：TODO: 要まとめ
+
+
+解決策：リダイレクトURLをresolveDirへ渡す
+
+axios.get()で返されるオブジェクトの中にはリダイレクトされたときのURLが載っている。
+
+`request.responseURL`これがリダイレクトされたときのURL。
+
+例 `responseURL: "https://unpkg.com/nested-test-pkg@1.0.0/src/index.js"`
+
+以下のようにするとうまいこと`/nested-test-pkg@1.0.0/src/`取得できる。
+
+```bash
+$ new URL("./", "https://unpkg.com/nested-test-pkg@1.0.0/src/index.js").pathname
+/nested-test-pkg@1.0.0/src/
+```
+
+```TypeScript
+  build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+      const { data, request } = await axios.get(args.path);
+
+      return {
+          loader: 'jsx',
+          contents: data,
+          // NOTE: updated 
+          resolveDir: new URL("./", request.responseURL).pathname
+      }
+  });
+```
+
+これで解決できた。
+
+#### 検証：実際のnpmパッケージをimportさせてみる
+
+次のテストコードで実際のNPMパッケージをインポートできるか試す。
+
+テストコード：
+
+```JavaScript
+import { createRoot } from 'react-dom/client';
+import react from 'react';
+
+const App = () => {
+    return (
+        <div>
+          REACT
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+```bash
+# ...
+# @ onResolve /.*/
+# args.path: react-dom
+# args: 
+{
+  importer: "http://unpkg.com/react-dom/client"
+  kind: "require-call"
+  namespace: "a"
+  path: "react-dom"
+  pluginData: undefined
+  resolveDir: "/react-dom@18.2.0"
+}
+# ERROR
+GET https://unpkg.com/react-dom@18.2.0/react-dom 404
+```
+
+`https://unpkg.com/react-dom@18.2.0/client.js`へブラウザで直接アクセスすると次のコードが返される。
+
+```JavaScript
+'use strict';
+
+var m = require('react-dom');   // NOTE: ここの解決を図ろうとして404エラー
+if (process.env.NODE_ENV === 'production') {
+  exports.createRoot = m.createRoot;
+  exports.hydrateRoot = m.hydrateRoot;
+} else {
+  // 中略
+}
+```
+
+アプリケーションが最終的に生成した次のURLにアクセスしようとしてみると404エラーが起こる
+
+`https://unpkg.com/react-dom@18.2.0/react-dom`
+
+問題：
+
+`react-dom@18.2.0/client.js`のimport文を解決しようとして
+
+本来`http://unpkg.com/react-dom`へアクセスするべきところ、
+
+現状`https://unpkg.com/react-dom@18.2.0/react-dom`へアクセスしてしまっている。
+
+原因：
+
+すべてのパッケージを`filter: /.*/`でまかなっているのが問題。
+
+相対パスと通常のパッケージを区別すればよい。
+
+名前解決の時点で区別すればよいので`esbuild.onResolve()`を修正する。
+
+テスターサイト： https://www.regextester.com/109212
+
+相対パスの正規表現：`/^\.+\//`
+
+次の表現に一致する。
+
+`./utils`, `../helers/`
+
+相対パスなしの文字列の正規表現：`/.*/`
+
+次の表現に一致する。
+
+`/modules/helpers`, `test.js`

@@ -14,39 +14,23 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
             // -- on resolve --
 
-            // エントリポイントのindex.js専用
             build.onResolve({filter: /(^index\.js$)/}, (args: esbuild.OnResolveArgs) => {
                 if(args.path === 'index.js') {
                     return {path: args.path, namespace: 'a'};
                 }
             });
 
-            // npmパッケージ他の解決
-            // 
             build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onResolve /.*/: ");
                 console.log(args.path);
                 console.log(args);
 
-                if(args.resolveDir.length) {
-                    // TODO: note.md参考に
-                    return {
-                        namespace: 'a',
-                        path: `https://unpkg.com${args.resolveDir}/${args.path}`
-                    };
-
-                }
-
                 return {
                     namespace: 'a',
-                    path: `https://unpkg.com/${args.path}`
+                    path: new URL(args.path, 'http://unpkg.com' + args.resolveDir + '/').href
                 };
             });
-
-            // // npmパッケージの解決
-            // build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
-            // });
 
             // -- on load --
 
@@ -58,24 +42,18 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 }
             });
 
-            // npmパッケージの解決
-            // 
-            // so far so good.
-            // 
-            // 相対パスの解決のためにresolveDirで解決済のディレクトリを登録する
             build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
                 const { data, request } = await axios.get(args.path);
-
-                const moduleName = new URL(args.path).pathname;
 
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
                 console.log(args);
+                console.log(request);
 
                 return {
                     loader: 'jsx',
                     contents: data,
-                    resolveDir: moduleName
+                    resolveDir: new URL("./", request.responseURL).pathname
                 }
             });
         }
