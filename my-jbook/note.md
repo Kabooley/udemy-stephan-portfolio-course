@@ -1120,3 +1120,110 @@ if (process.env.NODE_ENV === 'production') {
 次の表現に一致する。
 
 `/modules/helpers`, `test.js`
+
+```TypeScript
+// src/bundler/plugins/index.ts
+
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
+
+            // -- on resolve --
+
+            // Solves entry point
+            build.onResolve({filter: /(^index\.js$)/}, (args: esbuild.OnResolveArgs) => {
+                if(args.path === 'index.js') {
+                    return {path: args.path, namespace: 'a'};
+                }
+            });
+
+            // Solves related path
+            build.onResolve({ filter: /^\.+\// }, (args: esbuild.OnResolveArgs) => {
+                return {
+                    namespace: 'a',
+                    path: new URL(args.path, 'http://unpkg.com' + args.resolveDir + '/').href
+                };
+            })
+
+
+            // Solves file path
+            build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
+                return {
+                    namespace: 'a',
+                    path: `http://unpkg.com/${args.path}`
+                };
+            });
+
+            // -- on load --
+
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+                return {
+                    loader: 'jsx',
+                    contents: inputCode
+                }
+            });
+
+            build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+                const { data, request } = await axios.get(args.path);
+
+                return {
+                    loader: 'jsx',
+                    contents: data,
+                    resolveDir: new URL("./", request.responseURL).pathname
+                }
+            });
+        }
+    }
+}
+```
+
+これで解決できた
+
+## キャッシュ機能の追加
+
+どうしてキャッシュ機能を設けるの？何とトレードオフなのか？
+
+どうやってキャッシュ機能を設計するの？スタンダードとかあるの？
+
+#### 情報収集
+
+- MDN Cache
+
+https://developer.mozilla.org/en-US/docs/Web/API/Cache
+
+> `Cache` interfaceはリクエスト・レスポンス・ペアが長きにわたってメモリに保持され続けるための持続的なストレージメカニズムである
+> どのくらい保持してくれるかはブラウザによる。
+
+
+
+#### 設計
+
+手探りである。
+
+- いつキャッシュを取得する
+- キャッシュのデータ設計とは？
+- どこに保存するの？
+
+保存先として講義だとlocalforageというパッケージを使っている。
+
+キャッシュの機能といえば、
+- リクエスト済かどうかすぐわかること
+- 検索機能がめちゃ早いこと
+- キャッシュの保持期限を設けて期限が過ぎたら削除すること
+
+TODO:まずは自力でキャッシュ機能を実装してみる。
+その後パフォーマンスの改善、講義との比較を行う。
+
+まずはreact-dom/clientをimportしたときの解決のされ方からどう改善できるのか見出してみる。
+
+new URL("./", request.responseURL).pathname
+
+```bash
+# index.jsで`react-dom/client`
+onResolve: {path: 'react-dom/client'}
+onLoad: 
+  fetch redirect to "https://unpkg.com/react-dom@18.2.0/client.js"
+  return resolveDir: "/react-dom@18.2.0/"
+
+```

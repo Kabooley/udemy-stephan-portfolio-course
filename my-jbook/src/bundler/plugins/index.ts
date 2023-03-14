@@ -1,6 +1,18 @@
 import * as esbuild from 'esbuild-wasm';
 import axios from 'axios';
 
+/**
+ * @property {string} module - module path can be "./utils", "/helpers/utils", "react", "react-dom/client"
+ * 具体的なファイルの時にキャッシュしたいわけで、
+ * 
+ * */ 
+// interface iCacheList {
+//     module: string;
+//     content: string;
+// };
+
+// const cacheList: iCacheList[] = [];
+
 
 /**
  * @param {string} inputCode - ユーザがエディタに入力したコード
@@ -20,15 +32,26 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 }
             });
 
+            // Solves related path
+            build.onResolve({ filter: /^\.+\// }, (args: esbuild.OnResolveArgs) => {
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onResolve() filter: /^\.+\//");
+                console.log(args);
+                
+                return {
+                    namespace: 'a',
+                    path: new URL(args.path, 'http://unpkg.com' + args.resolveDir + '/').href
+                };
+            })
+
             build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
                 // DEBUG:
-                console.log("[unpkgPathPlugin] onResolve /.*/: ");
-                console.log(args.path);
+                console.log("[unpkgPathPlugin] onResolve() filter: /.*/");
                 console.log(args);
 
                 return {
                     namespace: 'a',
-                    path: new URL(args.path, 'http://unpkg.com' + args.resolveDir + '/').href
+                    path: `http://unpkg.com/${args.path}`
                 };
             });
 
@@ -49,6 +72,10 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
                 console.log(args);
                 console.log(request);
+
+                // TODO: Implement Cache system
+                // cacheList
+
 
                 return {
                     loader: 'jsx',
