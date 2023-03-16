@@ -1217,6 +1217,8 @@ TODO:まずは自力でキャッシュ機能を実装してみる。
 
 まずはreact-dom/clientをimportしたときの解決のされ方からどう改善できるのか見出してみる。
 
+onResolve()で解決されたpathと、そのpathでfetch()したdataをペアとすればいいのかな
+
 new URL("./", request.responseURL).pathname
 
 ```bash
@@ -1227,3 +1229,49 @@ onLoad:
   return resolveDir: "/react-dom@18.2.0/"
 
 ```
+
+#### [自習] JavaScript 配列から要素を見つける最も早い方法
+
+実現したいこと:
+
+配列の中のオブジェクトが探しているプロパティを持つ場合、そのオブジェクトのコピーを返してほしい
+
+参考：
+
+https://stackoverflow.com/a/35398031
+
+```TypeScript
+interface iCachedModule {
+    // path of resources which is part of url.
+    path: string;
+    // Fetched content data.
+    content: string;
+};
+
+const cachedModules: iCachedModule[] = [];
+cachedModules.push({
+    path: "/react-dom@18.2.0",
+    content: "..."
+});
+
+// To find, compare path property.
+// pathを比較して、一致するpathだったらそのオブジェクトのcontentを返す
+// 
+// 
+const getCachedModuleContent = (path: string): string | undefined => {
+    const module: iCachedModule | undefined = cachedModules.find( m => m.path === path);
+    if(module === undefined) return undefined;
+    return moudule.content;
+};
+
+
+```
+
+とはいえ講義ではlocalforageというパッケージを使って、その捜索を丸投げしている。
+
+つまりキャッシュ済かどうかのチェックをパッケージに任せているので、アプリケーションにそのチェックコードを書かなくていい
+
+TODO:
+
+localstorageの普通の使い方
+npmパッケージを使うべきなのか

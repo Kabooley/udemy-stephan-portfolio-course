@@ -2,16 +2,26 @@ import * as esbuild from 'esbuild-wasm';
 import axios from 'axios';
 
 /**
- * @property {string} module - module path can be "./utils", "/helpers/utils", "react", "react-dom/client"
- * 具体的なファイルの時にキャッシュしたいわけで、
- * 
+ * @property {string} path - 
+ * @property {string} content - 
  * */ 
-// interface iCacheList {
-//     module: string;
-//     content: string;
-// };
+interface iCachedModule {
+    // path of resources which is part of url.
+    path: string;
+    // Fetched content data.
+    content: string;
+};
 
-// const cacheList: iCacheList[] = [];
+// Modules will be stored here.
+const cachedModules: iCachedModule[] = [];
+
+// HELPER method.
+const getCachedModuleContent = (path: string): string | undefined => {
+    const module: iCachedModule | undefined = cachedModules.find( m => m.path === path);
+    if(module === undefined) return undefined;
+    return module.content;
+};
+
 
 
 /**
@@ -44,6 +54,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 };
             })
 
+            // Solves other path
             build.onResolve({filter: /.*/}, (args: esbuild.OnResolveArgs) => {
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onResolve() filter: /.*/");
@@ -66,17 +77,14 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
             });
 
             build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
-                const { data, request } = await axios.get(args.path);
-
+                
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
                 console.log(args);
                 console.log(request);
 
-                // TODO: Implement Cache system
-                // cacheList
-
-
+                // キャッシュ済かどうかは毎度チェックしないといかんが
+                // 講義だとそれをnpmパッケージに丸投げしている
                 return {
                     loader: 'jsx',
                     contents: data,

@@ -45,6 +45,7 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
 
        const result = await esbuild.build(buildOptions);
 
+       // TODO: エラー内容を詳細にして
        if(result === undefined) throw new Error;
 
     //    // DEBUG:
