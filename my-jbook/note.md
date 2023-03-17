@@ -1180,7 +1180,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
 これで解決できた
 
-## キャッシュ機能の追加
+## 実装：キャッシュ機能
 
 どうしてキャッシュ機能を設けるの？何とトレードオフなのか？
 
@@ -1195,83 +1195,107 @@ https://developer.mozilla.org/en-US/docs/Web/API/Cache
 > `Cache` interfaceはリクエスト・レスポンス・ペアが長きにわたってメモリに保持され続けるための持続的なストレージメカニズムである
 > どのくらい保持してくれるかはブラウザによる。
 
+...ひとまずいいか。
+
+- ブラウザで利用できるストレージ
+
+## [自習] LocalStorage vs. IndexedDB
+
+参考：
+
+https://stackoverflow.com/questions/5924485/how-is-indexeddb-conceptually-different-from-html5-local-storage
+
+#### LocalStorage (sessionstorage)
+
+https://developer.mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API
+
+https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
+
+> ストレージ・オブジェクトは、オブジェクトに似た単純なキー・バリュー・ストアですが、ページロード中もそのままの状態を保ちます。キーと値は常に文字列です（オブジェクトと同様に、整数のキーは自動的に文字列に変換されることに注意してください）。これらの値には、オブジェクトのようにアクセスするか、Storage.getItem()およびStorage.setItem()メソッドを使用することができます。
+
+- 少量しか保存できない
+- 文字列データしか扱えない
+- key検索しかできない
+
+#### IndexedDB
+
+https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB
+
+https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
+
+> IndexedDB は、ファイル/ブロブを含む大量の構造化データをクライアントサイドで保存するための低レベル API です。このAPIは、このデータの高性能な検索を可能にするためにインデックスを使用します。Web Storageは少量のデータを保存するのには便利ですが、大量の構造化データを保存するのにはあまり役に立ちません。IndexedDBはその解決策を提供します。
+
+特徴は、
+
+- 最近の技術である。
+- 大容量にできる。
+- 検索が速い。
+- オブジェクトに対して行える捜索手段がだいたい使える？
+
 
 
 #### 設計
 
-手探りである。
+講義ではnpmパッケージの`localforage`を使ってブラウザのindexedDBを利用していた。
 
-- いつキャッシュを取得する
-- キャッシュのデータ設計とは？
-- どこに保存するの？
+ほぼ丸投げできる。
 
-保存先として講義だとlocalforageというパッケージを使っている。
-
-キャッシュの機能といえば、
-- リクエスト済かどうかすぐわかること
-- 検索機能がめちゃ早いこと
-- キャッシュの保持期限を設けて期限が過ぎたら削除すること
-
-TODO:まずは自力でキャッシュ機能を実装してみる。
-その後パフォーマンスの改善、講義との比較を行う。
-
-まずはreact-dom/clientをimportしたときの解決のされ方からどう改善できるのか見出してみる。
-
-onResolve()で解決されたpathと、そのpathでfetch()したdataをペアとすればいいのかな
-
-new URL("./", request.responseURL).pathname
-
-```bash
-# index.jsで`react-dom/client`
-onResolve: {path: 'react-dom/client'}
-onLoad: 
-  fetch redirect to "https://unpkg.com/react-dom@18.2.0/client.js"
-  return resolveDir: "/react-dom@18.2.0/"
-
-```
-
-#### [自習] JavaScript 配列から要素を見つける最も早い方法
-
-実現したいこと:
-
-配列の中のオブジェクトが探しているプロパティを持つ場合、そのオブジェクトのコピーを返してほしい
-
-参考：
-
-https://stackoverflow.com/a/35398031
+しかしまずは自分なりの方法で一から作る。
 
 ```TypeScript
-interface iCachedModule {
-    // path of resources which is part of url.
-    path: string;
-    // Fetched content data.
-    content: string;
-};
+// src/bundler/plugins/index.ts
 
-const cachedModules: iCachedModule[] = [];
-cachedModules.push({
-    path: "/react-dom@18.2.0",
-    content: "..."
-});
+// 今のところメモリに「保存」している...
+const cache = (() => {
+    const _cache: iCachedModule[] = [];
 
-// To find, compare path property.
-// pathを比較して、一致するpathだったらそのオブジェクトのcontentを返す
-// 
-// 
-const getCachedModuleContent = (path: string): string | undefined => {
-    const module: iCachedModule | undefined = cachedModules.find( m => m.path === path);
-    if(module === undefined) return undefined;
-    return moudule.content;
-};
+    return {
+        get: (path: string): esbuild.OnLoadResult | undefined => {
+            const r: iCachedModule | undefined = _cache.find( m => m.path === path);
+            if(r === undefined) return undefined;
+            return r.onLoadResult;        
+        },
+        set: (path: string, onLoadResult: esbuild.OnLoadResult): void => {
+            _cache.push({path,onLoadResult});
+        }
+    }
+})();
 
+// ...
+    build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+        // DEBUG:
+        console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
 
+        let result: esbuild.OnLoadResult = {}; 
+        // Anyway load cached data.
+        const cachedContent = cache.get(args.path);
+        if(cachedContent !== undefined) {
+            // DEBUG: 
+            console.log("[unpkgPathPlugin] Load cached data.");
+            result = cachedContent;
+        }
+        else {
+            const { data, request } = await axios.get(args.path);
+            
+            // DEBUG:
+            console.log("[unpkgPathPlugin] cache new data.");
+            console.log(request);
+
+            result = {
+                loader: 'jsx',
+                contents: data,
+                resolveDir: new URL("./", request.responseURL).pathname
+            }
+            // Save result.
+            cache.set(args.path, result);
+        }
+        return result;
+    });
 ```
 
-とはいえ講義ではlocalforageというパッケージを使って、その捜索を丸投げしている。
+テストコード：
 
-つまりキャッシュ済かどうかのチェックをパッケージに任せているので、アプリケーションにそのチェックコードを書かなくていい
 
-TODO:
+```JavaScript
 
-localstorageの普通の使い方
-npmパッケージを使うべきなのか
+```
