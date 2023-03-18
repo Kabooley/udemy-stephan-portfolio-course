@@ -13,7 +13,9 @@ interface iCachedModule {
 };
 
 /**
- * TODO: This must use localstorage or something storage service of browser.
+ * NOTE: Temporary to use.
+ * 
+ * TODO: This must use client storage api.
  * 
  * */ 
 const cache = (() => {

@@ -1199,7 +1199,9 @@ https://developer.mozilla.org/en-US/docs/Web/API/Cache
 
 - ブラウザで利用できるストレージ
 
-## [自習] LocalStorage vs. IndexedDB
+## [自習] Client Storage API
+
+TODO: この記事についてまとめたノートの貼り付け。
 
 参考：
 
@@ -1233,69 +1235,51 @@ https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
 - オブジェクトに対して行える捜索手段がだいたい使える？
 
 
+#### 自作 or NPM package
 
-#### 設計
+まぁありものを使いましょう。
 
-講義ではnpmパッケージの`localforage`を使ってブラウザのindexedDBを利用していた。
+結局人気でも週刊ダウンロード数でもlocalforgaeが一番臭い。
 
-ほぼ丸投げできる。
+## [自習] localforageでIndexedDB
 
-しかしまずは自分なりの方法で一から作る。
+https://github.com/localForage/localForage
+
+https://localforage.github.io/localForage/
+
+非同期APIである。
+
+IndexedDBやweb sql非対応のブラウザの場合、localstorageコンパチブルのAPIを提供する。
+
+要はIndexedDBを簡便に使うためのものである。
+
+なんだかAPIページではkeyで欲しい奴を探してねって感じだけど、
+
+扱いたいデータはオブジェクトなのでkeyで探すとは限らないのだが...
+
+どんなデータが扱えるのだ？
+
+今扱いたいデータ
 
 ```TypeScript
-// src/bundler/plugins/index.ts
-
-// 今のところメモリに「保存」している...
-const cache = (() => {
-    const _cache: iCachedModule[] = [];
-
-    return {
-        get: (path: string): esbuild.OnLoadResult | undefined => {
-            const r: iCachedModule | undefined = _cache.find( m => m.path === path);
-            if(r === undefined) return undefined;
-            return r.onLoadResult;        
-        },
-        set: (path: string, onLoadResult: esbuild.OnLoadResult): void => {
-            _cache.push({path,onLoadResult});
-        }
-    }
-})();
-
-// ...
-    build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
-        // DEBUG:
-        console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
-
-        let result: esbuild.OnLoadResult = {}; 
-        // Anyway load cached data.
-        const cachedContent = cache.get(args.path);
-        if(cachedContent !== undefined) {
-            // DEBUG: 
-            console.log("[unpkgPathPlugin] Load cached data.");
-            result = cachedContent;
-        }
-        else {
-            const { data, request } = await axios.get(args.path);
-            
-            // DEBUG:
-            console.log("[unpkgPathPlugin] cache new data.");
-            console.log(request);
-
-            result = {
-                loader: 'jsx',
-                contents: data,
-                resolveDir: new URL("./", request.responseURL).pathname
-            }
-            // Save result.
-            cache.set(args.path, result);
-        }
-        return result;
-    });
+/**
+ * @property {string} path - unpkg.com/へ続くリソースパス
+ * @property {string} content - そのリソースパスのファイルの中身等の情報がつまったesbuildのonLoad()戻り値
+ * */ 
+interface iCachedModule {
+    // path of resources which is part of url.
+    path: string;
+    // Fetched content data.
+    onLoadResult: esbuild.OnLoadResult;
+};
 ```
 
-テストコード：
+#### Usage
 
+`localforage.getItem()`や`localforage.setItem()`でそのまま直接使えるが、
 
-```JavaScript
+オプションの指定やインスタンスを生成して使うこともできる。
 
-```
+インスタンス同士は独立しており別個のデータベースとして区別した使い方ができる。
+
+TODO: config()なしでcreateInstance()していいのかわからん。
