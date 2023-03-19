@@ -1,38 +1,11 @@
 import * as esbuild from 'esbuild-wasm';
 import axios from 'axios';
+import { createDBInstance } from '../../storage';
 
-/**
- * @property {string} path - 
- * @property {string} content - 
- * */ 
-interface iCachedModule {
-    // path of resources which is part of url.
-    path: string;
-    // Fetched content data.
-    onLoadResult: esbuild.OnLoadResult;
-};
 
-/**
- * NOTE: Temporary to use.
- * 
- * TODO: This must use client storage api.
- * 
- * */ 
-const cache = (() => {
-    const _cache: iCachedModule[] = [];
-
-    return {
-        get: (path: string): esbuild.OnLoadResult | undefined => {
-            const r: iCachedModule | undefined = _cache.find( m => m.path === path);
-            if(r === undefined) return undefined;
-            return r.onLoadResult;        
-        },
-        set: (path: string, onLoadResult: esbuild.OnLoadResult): void => {
-            _cache.push({path,onLoadResult});
-        }
-    }
-})();
-
+const cacheDB: LocalForage = createDBInstance({
+    name: 'modules cache'
+});
 
 
 /**
@@ -87,17 +60,25 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 }
             });
 
+            build.onLoad({filter: /(^index\.js$)/ }, () => {
+                
+                return {
+                    loader: 'jsx',
+                    contents: inputCode
+                }
+            });
+
             build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
                 // DEBUG:
                 console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
 
                 let result: esbuild.OnLoadResult = {}; 
                 // Anyway load cached data.
-                const cachedContent = cache.get(args.path);
-                if(cachedContent !== undefined) {
+                const cachedResult = await cacheDB.getItem<esbuild.OnLoadResult>(args.path);
+                if(cachedResult) {
                     // DEBUG: 
                     console.log("[unpkgPathPlugin] Load cached data.");
-                    result = cachedContent;
+                    result = cachedResult;
                 }
                 else {
                     const { data, request } = await axios.get(args.path);
@@ -111,8 +92,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                         contents: data,
                         resolveDir: new URL("./", request.responseURL).pathname
                     }
-                    // Save result.
-                    cache.set(args.path, result);
+                    cacheDB.setItem<esbuild.OnLoadResult>(args.path, result);
                 }
                 return result;
             });

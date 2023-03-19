@@ -1241,7 +1241,7 @@ https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
 
 結局人気でも週刊ダウンロード数でもlocalforgaeが一番臭い。
 
-## [自習] localforageでIndexedDB
+## localforageでIndexedDB
 
 https://github.com/localForage/localForage
 
@@ -1276,10 +1276,147 @@ interface iCachedModule {
 
 #### Usage
 
-`localforage.getItem()`や`localforage.setItem()`でそのまま直接使えるが、
+```TypeScript
+// src/storage/index.ts
 
-オプションの指定やインスタンスを生成して使うこともできる。
+import localforage from 'localforage';
 
-インスタンス同士は独立しており別個のデータベースとして区別した使い方ができる。
+/***
+ * NOTE: いかなるlocalforageのAPIを使うよりも前に呼び出さなくてはならない。
+ * 
+ * */ 
+localforage.config({
+    // 使用する優先ドライバー。他にlocalstorageやwebsqlもあるっぽい。
+    driver: localforage.INDEXEDDB,
+    // localStorage では、これは localStorage に格納されているすべてのキーのキー プレフィックスとして使用されます。
+    name: "my-jbook",
+    // size: web sqlを使うなら指定できる
+    // データストアの名前
+    storeName: "my_jbook_ds",
+    // スキーマバージョン番号。1.0とする以外使わない。
+    version: 1.0,
+    description: "indexeddb for my-jbook app"
+});
 
-TODO: config()なしでcreateInstance()していいのかわからん。
+export const createDBInstance = (configs: LocalForageOptions): LocalForage => {
+    return localforage.createInstance(configs);
+};
+
+// src/bundler/plugins/index.ts
+
+const cacheDB: LocalForage = createDBInstance({
+    name: 'modules cache'
+});
+
+ 
+export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
+    return {
+        name: "unpkg-path-plugin",
+        setup(build: esbuild.PluginBuild) {
+
+            // ...
+
+            build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
+
+                let result: esbuild.OnLoadResult = {}; 
+                // Anyway load cached data.
+                const cachedResult = await cacheDB.getItem<esbuild.OnLoadResult>(args.path);
+                if(cachedResult) {
+                    // DEBUG: 
+                    console.log("[unpkgPathPlugin] Load cached data.");
+                    result = cachedResult;
+                }
+                else {
+                    const { data, request } = await axios.get(args.path);
+                    
+                    // DEBUG:
+                    console.log("[unpkgPathPlugin] cache new data.");
+                    console.log(request);
+    
+                    result = {
+                        loader: 'jsx',
+                        contents: data,
+                        resolveDir: new URL("./", request.responseURL).pathname
+                    }
+                    cacheDB.setItem<esbuild.OnLoadResult>(args.path, result);
+                }
+                return result;
+            });
+        }
+    }
+}
+```
+
+## cssファイルの解決
+
+現状、cssファイルのエディタがないので外部から引っ張ってくるしかない。
+
+なのでcssのパッケージを引っ張ってくる。
+
+講義だと`bulma`を使っていた。
+
+次のテストコード
+
+```JavaScript
+import { createRoot } from 'react-dom/client';
+import react from 'react';
+import 'bulma/css/bulma.css';
+
+const App = () => {
+    return (
+        <div className="container">
+          <span>REACT</span>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+これをバンドリングすると次のようなエラー
+
+```bash
+Load cached data.
+[unpkgPathPlugin] cache new data.
+XMLHttpRequest {onreadystatechange: null, readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, …}
+[ERROR] Unexpected "."
+
+    a:http://unpkg.com/bulma/css/bulma.css:3:0:
+      3 │ .button, .input, .textarea, .select select, .file-cta,
+        ╵ ^
+```
+
+原因の特定：
+
+そもそも`http://unpkg.com/bulma/css/bulma.css`はアクセスできるのか？
+できる
+
+エラーメッセージを見てみると、cssセレクタの前にドットがありそれがおかしいと言っている。
+
+たぶんだけど、`esbuild.OnLoadResult`で`loader: 'jsx'`としているのが原因かも。
+
+このローダーは、
+
+https://esbuild.github.io/plugins/#on-load-results
+
+> これにより、コンテンツの解釈方法が esbuild に伝えられます。たとえば、js ローダーはコンテンツを JavaScript として解釈し、css ローダーはコンテンツを CSS として解釈します。指定されていない場合、ローダーはデフォルトで js になります。
+
+https://esbuild.github.io/content-types/#css
+
+でloader: cssについて。
+
+ということで、拡張子が`.css`のものは別でloadすればいい。
+
+正規表現：
+
+参考：https://stackoverflow.com/a/31473828
+
+/.\.css$/: `.css`にのみマッチする(.cssの前の部分はマッチしない)
+
+/\S+\.css$/: 相対パスで拡張子が`.css`にマッチする
+
+```TypeScript
+
+```
