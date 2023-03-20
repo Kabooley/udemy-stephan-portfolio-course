@@ -60,12 +60,34 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
                 }
             });
 
-            build.onLoad({filter: /(^index\.js$)/ }, () => {
-                
-                return {
-                    loader: 'jsx',
-                    contents: inputCode
+            // CSS
+            build.onLoad({filter: /\S+\.css$/ }, async (args: esbuild.OnLoadArgs) => {
+                // DEBUG:
+                console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
+
+                let result: esbuild.OnLoadResult = {}; 
+                // Anyway load cached data.
+                const cachedResult = await cacheDB.getItem<esbuild.OnLoadResult>(args.path);
+                if(cachedResult) {
+                    // DEBUG: 
+                    console.log("[unpkgPathPlugin] Load cached data.");
+                    result = cachedResult;
                 }
+                else {
+                    const { data, request } = await axios.get(args.path);
+                    
+                    // DEBUG:
+                    console.log("[unpkgPathPlugin] cache new data.");
+                    console.log(request);
+    
+                    result = {
+                        loader: 'css',
+                        contents: data,
+                        resolveDir: new URL("./", request.responseURL).pathname
+                    }
+                    cacheDB.setItem<esbuild.OnLoadResult>(args.path, result);
+                }
+                return result;
             });
 
             build.onLoad({filter: /.*/ }, async (args: esbuild.OnLoadArgs) => {

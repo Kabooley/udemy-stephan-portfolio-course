@@ -1417,6 +1417,121 @@ https://esbuild.github.io/content-types/#css
 
 /\S+\.css$/: 相対パスで拡張子が`.css`にマッチする
 
+/[\w\d]+\.css$/: `xxx.css`にのみマッチする
+
+esbuild plugins のfilterは
+
 ```TypeScript
 
+// PATTERN 1
+const reg = /.\.css$/;
+
+console.log(reg.test("./bulma/css/bulma.css")); // true
+console.log(reg.test("bulma.css"));             // true
+console.log(reg.test("/bulma/css/bulma.css"));  // true
+console.log("./bulma/css/bulma.css".match(reg));    // a.css
+console.log("bulma.css".match(reg));                // a.css
+console.log("/bulma/css/bulma.css".match(reg));     // a.css
+
+// PATTERN 2
+const reg = /\S+\.css$/;
+
+// true
+console.log(reg.test("./bulma/css/bulma.css")); // true
+console.log(reg.test("bulma.css"));             // true
+console.log(reg.test("/bulma/css/bulma.css"));  // true
+console.log("./bulma/css/bulma.css".match(reg));    // ./bulma/css/bulma.css
+console.log("bulma.css".match(reg));                // bulma.css
+console.log("/bulma/css/bulma.css".match(reg));     // /bulma/css/bulma.css
+
+// PATTERN 3
+const reg = /[\w\d]+\.css$/;
+
+// true
+console.log(reg.test("./bulma/css/bulma.css")); // true
+console.log(reg.test("bulma.css"));             // true
+console.log(reg.test("/bulma/css/bulma.css"));  // true
+console.log("./bulma/css/bulma.css".match(reg));    // bulma.css
+console.log("bulma.css".match(reg));                // bulma.css
+console.log("/bulma/css/bulma.css".match(reg));     // bulma.css
+
 ```
+
+ということで、pattern 2が正しい表現である。
+
+```TypeScript
+build.onLoad({filter: /\S+\.css$/ }, async (args: esbuild.OnLoadArgs) => {
+    // DEBUG:
+    console.log("[unpkgPathPlugin] onLoad packages :" + args.path);
+
+    let result: esbuild.OnLoadResult = {}; 
+    // Anyway load cached data.
+    const cachedResult = await cacheDB.getItem<esbuild.OnLoadResult>(args.path);
+    if(cachedResult) {
+        // DEBUG: 
+        console.log("[unpkgPathPlugin] Load cached data.");
+        result = cachedResult;
+    }
+    else {
+        const { data, request } = await axios.get(args.path);
+        
+        // DEBUG:
+        console.log("[unpkgPathPlugin] cache new data.");
+        console.log(request);
+
+        result = {
+            loader: 'css',
+            contents: data,
+            resolveDir: new URL("./", request.responseURL).pathname
+        }
+        cacheDB.setItem<esbuild.OnLoadResult>(args.path, result);
+    }
+    return result;
+});
+```
+
+すると次のエラー
+
+```bash
+✘ [ERROR] Cannot import "a:http://unpkg.com/bulma/css/bulma.css" into a JavaScript file without an output path configured
+
+    a:index.js:3:7:
+      3 │ import 'bulma/css/bulma.css';
+        ╵        ~~~~~~~~~~~~~~~~~~~~~
+```
+> 出力パスが設定されていないJavaScriptファイルに "a:http://unpkg.com/bulma/css/bulma.css "をインポートすることはできません。
+
+もう一度公式の説明を見る。
+
+https://esbuild.github.io/content-types/#css-from-js
+
+> CSSファイルをJavaScriptファイルからインポートすることができる。その場合、そのエントリポイントのJSファイルが参照しているすべてのcssファイルをバンドルして、そのjsファイルが出力されたファイルの隣に出力する。`app.js`が参照するすべてのcssファイルは、`app.js`の隣に`app.css`として出力されるということ。
+
+> **esbuildはまだCSSモジュールをサポートしていないので、CSSファイルからのJavaScriptのエクスポート名のセットは、現在常に空であることに注意してください。** CSSモジュールの基本的な形式をサポートすることはロードマップにあります。
+
+> esbuildが生成するバンドルJavaScriptは、生成されたCSSを自動的にHTMLページにインポートしてくれるわけではありません。代わりに、生成されたJavaScriptと一緒に、生成されたCSSを自分でHTMLページにインポートする必要があります。これは、ブラウザがCSSとJavaScriptのファイルを並行してダウンロードできることを意味し、これが最も効率的な方法です。それは次のようになります。
+
+ということで、css moduleは手動で直接HTMLへ埋め込んでくれとのこと。
+
+アプリケーションはJavaScriptで実行されることが前提なので、
+
+JSコードで埋め込むようにテンプレートを設ける。
+
+CSS Moduelsの埋め込み
+
+```TypeScript
+const embedStyleSheetsTemplate = `
+    const style = document.createElement("style");
+    style.innerHTML = "${CSSMODULECONTENT}"; 
+    document.head.appendChild(style);
+    `;
+
+return {
+    loader: 'css',
+    content: embedStyleSheetsTemplate,
+    resolveDir: new URL("./", request.responseURL).pathname
+}
+```
+
+HTMLへ直接埋め込むので、文字エスケープする。
+
