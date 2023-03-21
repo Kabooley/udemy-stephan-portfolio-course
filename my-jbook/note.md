@@ -1535,3 +1535,17 @@ return {
 
 HTMLへ直接埋め込むので、文字エスケープする。
 
+TODO: 他でとったノートを貼り付け
+
+## wasm moduleのローディング
+
+TODO: 404 URLが有効でない
+
+```TypeScript
+
+const initializeOptions: esbuild.InitializeOptions = {
+    // wasmURL:  '/esbuild.wasm',
+    worker: true,
+    wasmURL: 'http://unpkg.com/esbuild-wasm@0.17.11/esbuid-wasm'
+};
+```

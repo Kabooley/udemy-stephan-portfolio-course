@@ -1,19 +1,19 @@
 import * as esbuild from 'esbuild-wasm';
-import { unpkgPathPlugin } from './plugins';
+import { unpkgPathPlugin } from './plugins/unpkgPathPlugin';
+import { fetchPlugins } from './plugins/fetch';
 
 interface iBuildResult {
     code: string;
     err: string;
 };
 
-
 const initializeOptions: esbuild.InitializeOptions = {
-    wasmURL:  '/esbuild.wasm',
-    worker: true
+    // wasmURL:  '/esbuild.wasm',
+    worker: true,
+    wasmURL: 'http://unpkg.com/esbuild-wasm@0.17.11/esbuid-wasm'
 };
 
 let isInitialized: boolean = false;
-
 
 /**
  * @param { string } rawCode - The code that user typed and submitted.
@@ -21,10 +21,6 @@ let isInitialized: boolean = false;
  * */ 
 export const bundler = async (rawCode: string): Promise<iBuildResult> => {
     try {
-        
-        // DEBUG: 
-        // console.log("[bundler]");
-        // console.log(rawCode);
 
         // 必ずesbuildAPIを使い始める前に呼出す
         if(!isInitialized) {
@@ -39,7 +35,7 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
             // To not to write result in filesystem.
             write: false,
             // To use plugins which solves import modules.
-            plugins: [unpkgPathPlugin(rawCode)],
+            plugins: [fetchPlugins(rawCode), unpkgPathPlugin()],
         };
         
 
@@ -47,11 +43,6 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
 
        // TODO: エラー内容を詳細にして
        if(result === undefined) throw new Error;
-
-    //    // DEBUG:
-    //    for (let out of result.outputFiles!) {
-    //      console.log(out.path, out.contents, out.text)
-    //    };
 
        return {
         code: result.outputFiles![0].text,
