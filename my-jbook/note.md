@@ -1549,3 +1549,108 @@ const initializeOptions: esbuild.InitializeOptions = {
     wasmURL: 'http://unpkg.com/esbuild-wasm@0.17.11/esbuid-wasm'
 };
 ```
+
+--- 3/22
+
+#### ユーザが入力しうる危険なコードの候補
+
+- ユーザが入力するコードがもたらすエラーでアプリケーションをクラッシュさせる可能性がある
+- ユーザが入力するコードがDOMを変更してクラッシュが起こりうるかも
+- ユーザが入力するコードが第三者からもたらされたもので、悪意のあるコードである可能性がある
+
+
+#### iframeのテスト
+
+```TypeScript
+// src/components/code.tsx
+export const Code = () => {
+    return (
+        <div>
+            // Need public/test.html
+            <iframe src="/test.html"></iframe>
+        </div>
+    );
+}
+```
+後はコンソールなりで通信する方法を試してみる
+
+#### 閲覧コンテキスト間通信
+
+参考：
+
+https://stackoverflow.com/a/9154267
+
+
+直接のやり取り
+
+- `iframe`が`sandbox`プロパティを持たないとき、または`sandbox="allow-same-origin"`プロパティを持つとき
+
+    TODO: 要確認）異なるオリジン間でも上記の条件を満たせば直接やり取りできるのか？
+
+- その`iframe`と全く同じドメイン、ポート、プロトコルからの通信された場合にのみフレーム間で直接アクセスできる
+
+    TODO: 上記の確認
+
+関節のやり取り
+
+`window.postMessage()`なら、`sandbox`プロパティを持っていても、または異なるオリジン間でもやり取りができるのか？
+
+検証1：何も指定しない && 同一オリジン
+
+親・iframe書くコンテキストのオリジンはlocalhost:3000である
+
+通信の方法参考：
+
+https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#scripting
+
+- `window.frames`
+- `iframeElement.contentWindow`
+- `window.parent`
+
+```TypeScript
+export const Code = () => {
+    return (
+        <div>
+            <iframe src="/test.html"></iframe>
+        </div>
+    );
+}
+```
+
+```bash
+# In chrome DevTools console
+# 
+# Choosing parent context
+> window.a = 1
+> const color = "red"
+> window.a
+1
+> color
+red
+
+# Change context to embedded context
+> window.a
+Error window.a is not exist
+> color
+Error color is not exist
+# parentを使うと親環境のオブジェクトを取得できてしまう！
+> parent.a
+1 
+> window.b = 2
+2
+
+# Change context to parent context
+> window.b
+undefined       # 親が子の定義したものを取得できないけれど...
+
+# 次の方法で取得することができてしまう
+> document.querySelector('iframe').contentWindow
+# 子環境のグローバルオブジェクトを取得できてしまうので...
+> const childWindow = document.querySelector('iframe').contentWindow
+> childWindow.b
+2   # 取得できてしまう
+```
+
+実は、特に制限しない限り親環境と子環境は相互に通信できてしまう。
+
+iframeは`sandbox`をしていすることで制限または制限解除を指定できる。

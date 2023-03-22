@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { bundler } from '../bundler';
+import { Code } from './code';
 
 
 const Editor = () => {
@@ -32,6 +33,7 @@ const Editor = () => {
             <textarea value={input} onChange={(e) => setInput(e.target.value)} />
             <button onClick={onClick}>Submit</button>
             <pre>{code}</pre>
+            <Code />
         </div>
     );
 };
