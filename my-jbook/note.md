@@ -1591,13 +1591,9 @@ https://stackoverflow.com/a/9154267
 
     TODO: 上記の確認
 
-関節のやり取り
+間接のやり取り
 
 `window.postMessage()`なら、`sandbox`プロパティを持っていても、または異なるオリジン間でもやり取りができるのか？
-
-検証1：何も指定しない && 同一オリジン
-
-親・iframe書くコンテキストのオリジンはlocalhost:3000である
 
 通信の方法参考：
 
@@ -1617,8 +1613,13 @@ export const Code = () => {
 }
 ```
 
+#### 検証1：制限なし && 同一オリジン
+
+親・iframe各コンテキストのオリジンはlocalhost:3000である
+
 ```bash
 # In chrome DevTools console
+# 通常のコンテキストの違いの確認
 # 
 # Choosing parent context
 > window.a = 1
@@ -1642,15 +1643,88 @@ Error color is not exist
 # Change context to parent context
 > window.b
 undefined       # 親が子の定義したものを取得できないけれど...
+```
 
-# 次の方法で取得することができてしまう
-> document.querySelector('iframe').contentWindow
-# 子環境のグローバルオブジェクトを取得できてしまうので...
-> const childWindow = document.querySelector('iframe').contentWindow
-> childWindow.b
-2   # 取得できてしまう
+```bash
+# `iframeElement.contentWindow`で取得する方法の確認
+# 
+# (子環境)
+$ window.d = "DDD"
+ 'DDD'
+$ d
+ 'DDD'
+# (親環境)
+$ d
+ VM772:1 Uncaught ReferenceError: d is not definymous>:1:1
+(anonymous) @ VM772:1
+$ window.d
+ undefined
+$ document.querySelector('iframe').contentWindow
+ Window {window: Window, self: Window, document: document, name: '', location: Location, …}
+$ document.querySelector('iframe').contentWindow.d
+ 'DDD'  # アクセスできた
+```
+
+```bash
+# `window.parent`で、子環境から親環境へアクセスできるかの確認
+# 
+# In test.html (iframe) context
+$ window.parent
+Window {...}    # これは親コンテキストで実行しても同じ
+$ window.parent.a
+111             # 先で親コンテキストで定義した変数aにアクセスできる
+$ window.parent.document.querySelectorAll('button');
+NodeList[button]    # このようにdocumentでアクセスもできる
+
+# 一方、親環境から子環境へアクセスすることはできない
+# 
+$ window.b = "this is B"
+# (親環境へ切り替え)
+$ window.b
+undefined
+$ window.parent.b
+undefined
+```
+```bash
+# `window.frames`を使ったアクセス方法の確認
+# 
+# (子環境)
+ $ window.e = "eee"
+ 'eee'
+ $ e
+ 'eee'
+# (親環境)
+ $ window.f = "ffffuccc"
+ 'ffffuccc'
+ $ f
+ 'ffffuccc'
+ $ window.frames
+ $ window.frames.e
+ undefined
+ $ window.frames.length
+ 1
+ $ window.frames[0].e
+ 'eee'
 ```
 
 実は、特に制限しない限り親環境と子環境は相互に通信できてしまう。
 
-iframeは`sandbox`をしていすることで制限または制限解除を指定できる。
+まとめ：
+
+- `window.parent`を使えば、子コンテキストから親コンテキストへアクセスすることができる。その逆はできない。
+- `iframeElement.contentWindow`を使えば、親コンテキストから子コンテキストへアクセスすることができる。
+- `window.frames`はカレントウィンドウのサブフレームの疑似配列を返し、`window.frames[0]`等のように使うことによってすべてのサブフレームへアクセスすることができる。
+
+
+#### 検証２：制限有 && 同一オリジン
+
+`sandbox`:
+
+
+
+NOTE: 注意
+
+> 埋め込み文書が埋め込みページと同じオリジンを持つ場合、allow-scripts と allow-same-origin の両方を使用することは強く推奨されません。それ等の組み合わせは`sandbox`属性を除去してしまうため、`sandbox`属性だけ使う場合よりもはるかに危険な状況になってしまいます。
+
+> サンドボックスは、攻撃者がサンドボックス化されたiframeの外側にコンテンツを表示できる場合（視聴者が新しいタブでフレームを開いた場合など）、意味がありません。このようなコンテンツは、潜在的な被害を抑えるために、別のオリジンから提供する必要があります。
+
