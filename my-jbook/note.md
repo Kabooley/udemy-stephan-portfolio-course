@@ -1552,6 +1552,12 @@ const initializeOptions: esbuild.InitializeOptions = {
 
 --- 3/22
 
+## iframe
+
+https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe
+
+https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Other_embedding_technologies
+
 #### ユーザが入力しうる危険なコードの候補
 
 - ユーザが入力するコードがもたらすエラーでアプリケーションをクラッシュさせる可能性がある
@@ -1593,7 +1599,7 @@ https://stackoverflow.com/a/9154267
 
 間接のやり取り
 
-`window.postMessage()`なら、`sandbox`プロパティを持っていても、または異なるオリジン間でもやり取りができるのか？
+`window.postMessage()`なら、制限のある環境同士の通信は可能とMDNに書いてあった。
 
 通信の方法参考：
 
@@ -1718,13 +1724,198 @@ undefined
 
 #### 検証２：制限有 && 同一オリジン
 
+sandboxは...
+
+- 値なし`sandbox`属性はすべての制限を設けるという意味になる
+- `sandbox: allow-XXX`で、その制限が解除される
+- `allow-scripts`と`allow-same-origin`の両方を設けてはならない。
+
+
 `sandbox`:
 
-
+> 追加の制限を、iframeの中身に対して設けることができる。この属性の値は省略することができ、その場合すべての制限を設けるということになる。特定の制限を解除するためにスペースで区切られたトークンにすることができます
 
 NOTE: 注意
 
 > 埋め込み文書が埋め込みページと同じオリジンを持つ場合、allow-scripts と allow-same-origin の両方を使用することは強く推奨されません。それ等の組み合わせは`sandbox`属性を除去してしまうため、`sandbox`属性だけ使う場合よりもはるかに危険な状況になってしまいます。
 
 > サンドボックスは、攻撃者がサンドボックス化されたiframeの外側にコンテンツを表示できる場合（視聴者が新しいタブでフレームを開いた場合など）、意味がありません。このようなコンテンツは、潜在的な被害を抑えるために、別のオリジンから提供する必要があります。
+
+検証）`sandbox`で全ての制限を設けられるとのことなので、先の検証と同じ実験を`sandbox`アリで実行してみる:
+
+```bash
+# (親環境)
+$ window.a = 111
+$ a
+111
+# (子環境)
+$ window.b = "BBB"
+$ b
+BBB
+# 親環境へアクセスしてみる
+$ window.parent.a
+Uncaught DOMException: Blocked a frame with origin "null" from accessing a cross-origin frame.
+# アクセスできなかった
+# 
+# (親環境)
+# 
+$ document.querySelector('iframe').contentWindow.b
+VM232:1 Uncaught DOMException: Blocked a frame with origin "http://localhost:3000" from accessing a cross-origin frame.
+# アクセスできなかった
+# 
+# window.framesを試してみる
+$ window.frames.length
+1
+$ window.frames[0].b
+Uncaught DOMException: Blocked a frame with origin "http://localhost:3000" from accessing a cross-origin frame.
+```
+
+結果）先の検証のアクセス方法はすべてブロックされた。
+
+`sandbox`を設けておけばアクセスはできなくなるということは確かに確認できた。
+
+#### 検証3：制限無し && 非同一オリジン
+
+NOTE: 検証のために、一時的にオリジンを変更する
+
+```bash
+# /etc/hostsを上書きする (次回起動時には元通りになるので安心してくれ)
+$ sudo vim /etc/hosts
+# ADD: 127.0.0.1 nothing.localhost
+# and save it.
+```
+```TypeScript
+export const Code = () => {
+    return (
+        <div>
+            <iframe 
+                // Give new utl that domain is new domain which on /etc/hosts
+                src="http://nothig.localhost:3000/test.html"
+                // sandbox=""
+            />
+        </div>
+    );
+}
+```
+
+検証）「その`iframe`と全く同じドメイン、ポート、プロトコルからの通信された場合にのみフレーム間で直接アクセスできる」の確認
+
+chrome devtools のnetworkタブで確認したところ、`test.html`のオリジンは先で指定した通りになっている。
+
+結果）確かにアクセスできなかったことが確認できた
+
+```bash
+# (親環境)
+$ window.abc = "abc"
+ 'abc'
+$ abc
+ 'abc'
+# (子環境)
+$ window.xyz = "xyz"
+ 'xyz'
+$ xyz
+ 'xyz'
+$ window.parent.abc
+ VM152:1 Uncaught DOMException: Blocked a frame with origin "http://nothig.localhost:3000" from accessing a cross-origin frame.
+    at <anonymous>:1:15
+(anonymous) @ VM152:1
+# (親環境)
+$ document.querySelector('iframe').contentWindow.xyz
+ VM257:1 Uncaught DOMException: Blocked a frame with origin "http://localhost:3000" from accessing a cross-origin frame.
+    at <anonymous>:1:47
+(anonymous) @ VM257:1
+$ window.frame
+ 1
+$ window.frames[0].xyz
+ VM343:1 Uncaught DOMException: Blocked a frame with origin "http://localhost:3000" from accessing a cross-origin frame.
+    at <anonymous>:1:18
+(anonymous) @ VM343:1
+```
+
+
+
+#### まとめ：`iframe`と親環境のアクセス条件
+
+- 同一オリジン、且つ`sandbox`なしの`iframe`に対しては、`window.frames`,`iframeElement.contentWindow`,`window.parent`で相互にアクセスすることができる。
+- 値なし`sandbox`属性アリの`iframe`ならばお互い一切のアクセスはできなくなる。
+- 非同一オリジンであれば`sandbox`なしでも、どちらからでもアクセスが出来なくなる
+
+
+#### どうやってフレーム間通信を実現するか
+
+- iframe and parent context are same origin.
+
+- set sandbox attribute with no value on iframe 
+
+- user provides js codes
+
+- user submits it
+
+- submitted code is caught and send to iframe of preview by targetIFrame.postMessage()
+
+- iframe get message by `message` event listener and pass code to srcDoc attirbute
+
+- render it
+
+これで、
+
+`sandbox`が有効なのでお互いアクセスはできない。
+
+`window.postMessage()`は送信対象を制限できるので任意の送信先以外に送信されない。
+
+iframe側は受け取るメッセージをチェックできる。
+
+`srcDoc`は埋め込みHTMLを与えるために使うので`srcDoc`へ送信されたコードを埋め込む。
+
+## `window.postMessage()`
+
+> window.postMessage()メソッドは、Windowオブジェクト間のクロスオリジン通信を安全に可能にします。例えば、ページとそれが生成したポップアップ、またはページとその中に埋め込まれたiframeの間などです。
+
+> 通常、異なるページのスクリプトは、それらが発信されたページが同じプロトコル、ポート番号、およびホストを共有する場合にのみ、互いにアクセスすることが許可されます（「同一起源ポリシー」としても知られています）。window.postMessage()は、（適切に使用されていれば）この制限を安全に回避する制御機構を提供します。
+
+> 大まかには、あるウィンドウが別のウィンドウへの参照を取得し（例えば、targetWindow = window.openerを介して）、targetWindow.postMessage()でそのウィンドウにMessageEventをディスパッチすることができます。その後、受信側のウィンドウは、必要に応じてこのイベントを自由に処理することができます。window.postMessage()に渡された引数（つまり「メッセージ」）は、eventオブジェクトを通じて受信ウィンドウに公開されます。
+
+ということで、まずは送信対象のwindowオブジェクトを取得する必要がある
+
+#### Ref forwarding
+
+https://react.dev/learn/manipulating-the-dom-with-refs#accessing-another-components-dom-nodes
+
+```TypeScript
+const Editor = () => {
+    const previewFrame = useRef<any>(null);
+
+    const onClick = async () => {
+
+        // ...
+
+        previewFrame.current.postMessage({
+            code: result.code
+        })
+    };
+
+    return (
+        // ...
+        <Code ref={previewFrame} /> // ERROR!
+    );
+};
+```
+
+このエラーが出る原因は、
+
+refは本来DOM nodeへ対して利用できるもので、ユーザ定義のコンポーネントはDOM nodeではないため。
+
+> これは、Reactのデフォルトでは、コンポーネントが他のコンポーネントのDOMノードにアクセスできないために起こります。自分の子でさえもです！これは意図的なものです。Refは逃げ道であり、控えめに使うべきものです。他のコンポーネントのDOMノードを手動で操作すると、コードがさらに壊れやすくなります。
+
+つまり、
+
+`<input ref={ref}/>`はできるけれど、`<Input ref={ref} />`は出来ないということ。
+
+これの解決方法。
+
+> その代わりに、DOMノードを公開したいコンポーネントは、その動作を選択する必要があります。コンポーネントは、その子コンポーネントの1つにrefを「転送」するよう指定することができます。以下は、MyInputがforwardRef APIを使用する方法です：
+
+つまり、
+
+ユーザ定義コンポーネントへはrefはpropとして渡して、実際のDOMnode子コンポーネントへ渡せばよい、とのこと。
 

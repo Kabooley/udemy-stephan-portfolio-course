@@ -3,24 +3,33 @@
  * 
  * 
  * */ 
-// const executeFrameScriptTemplate = `
-//     <script>
-//         try {
+const hmltTemplate = `
+<html>
+  <head></head>
+  <body>
+    <div id="root">
+      <script>
+        window.addEventListener('message', (e) => {
+          try {
+            // TODO: evalじゃない方法
+            eval(e.data);
+          }
+          catch(err) {
+            // ここにエラー時にどうするかの挙動を設ければよい
+          }
+        }, false);
 
-//         }
-//         catch(e) {
+      </script>
+    </div>
+  </body>
+</html>
+`;
 
-//         }
-//     </script>
-// `;
-
-export const Code = () => {
+export const Code = ({ ref }: { ref: any}) => {
     return (
-        <div>
-            <iframe 
-                src="/test.html"
-                
-                ></iframe>
+        // TODO: refはdivに渡していいのか、iframeに渡すべきなのか
+        <div ref={ref} >
+            <iframe srcDoc={hmltTemplate} sandbox="" />
         </div>
     );
 }

@@ -2,15 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { bundler } from '../bundler';
 import { Code } from './code';
 
+interface iMessage {
+    // NOTE: this message should send identfier to avoid malicious message
+    code: string
+}
+
 
 const Editor = () => {
-    const ref = useRef<any>();
+    const previewFrame = useRef<any>(null);
     const [input, setInput] = useState<string>('');
     const [code, setCode] = useState<string>('');
 
     useEffect(() => {
         // DEBUG: 
-        // console.log("[Editor] effect");
     }, [])
 
     const onClick = async () => {
@@ -26,6 +30,10 @@ const Editor = () => {
         // console.log(result);
 
         setCode(result.code);
+
+        previewFrame.current.postMessage({
+            code: result.code
+        })
     };
 
     return (
@@ -33,7 +41,7 @@ const Editor = () => {
             <textarea value={input} onChange={(e) => setInput(e.target.value)} />
             <button onClick={onClick}>Submit</button>
             <pre>{code}</pre>
-            <Code />
+            <Code ref={previewFrame} />
         </div>
     );
 };
