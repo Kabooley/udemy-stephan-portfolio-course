@@ -21,11 +21,13 @@ let isInitialized: boolean = false;
  * */ 
 export const bundler = async (rawCode: string): Promise<iBuildResult> => {
     try {
-
+        console.log(isInitialized);
+        
         // 必ずesbuildAPIを使い始める前に呼出す
         if(!isInitialized) {
             await esbuild.initialize(initializeOptions);
             isInitialized = true;
+            console.log("initialized");
         }
 
         const buildOptions: esbuild.BuildOptions = {
@@ -40,6 +42,8 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
         
 
        const result = await esbuild.build(buildOptions);
+
+       console.log(result);
 
        // TODO: エラー内容を詳細にして
        if(result === undefined) throw new Error;

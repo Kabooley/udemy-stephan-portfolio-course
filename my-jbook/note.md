@@ -1357,6 +1357,8 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
 講義だと`bulma`を使っていた。
 
+#### CSS テストコード
+
 次のテストコード
 
 ```JavaScript
@@ -1900,8 +1902,7 @@ const Editor = () => {
     );
 };
 ```
-
-このエラーが出る原因は、
+原因）
 
 refは本来DOM nodeへ対して利用できるもので、ユーザ定義のコンポーネントはDOM nodeではないため。
 
@@ -1911,11 +1912,16 @@ refは本来DOM nodeへ対して利用できるもので、ユーザ定義のコ
 
 `<input ref={ref}/>`はできるけれど、`<Input ref={ref} />`は出来ないということ。
 
-これの解決方法。
+解決方法）
 
 > その代わりに、DOMノードを公開したいコンポーネントは、その動作を選択する必要があります。コンポーネントは、その子コンポーネントの1つにrefを「転送」するよう指定することができます。以下は、MyInputがforwardRef APIを使用する方法です：
 
 つまり、
 
-ユーザ定義コンポーネントへはrefはpropとして渡して、実際のDOMnode子コンポーネントへ渡せばよい、とのこと。
+useRefの戻り値をユーザ定義コンポーネントのpropとして渡す 
+&&
+ユーザ定義コンポーネントを`React.forwardRef()`でラップする
 
+ことでrefをバケツリレーできるようになる。
+
+TODO: onclick のハンドラが同期呼出である模様...await呼び出しできないかしら...
