@@ -1925,3 +1925,60 @@ useRefの戻り値をユーザ定義コンポーネントのpropとして渡す
 ことでrefをバケツリレーできるようになる。
 
 TODO: onclick のハンドラが同期呼出である模様...await呼び出しできないかしら...
+
+
+-- 3/26
+
+## JavaScript文字列コードを実行させる方法の話
+
+#### なぜscriptタグへの埋め込みではだめなのか
+
+- escapeしなくてはならない
+- 埋め込むJSコード文字列が長すぎるとブラウザがその文字列を分割して挿入したりするので予期しない
+
+```TypeScript
+import { useState } from 'react';
+
+export const Cell = () => {
+    const [input, setInput] = useState<string>('');
+    const [code, setCode] = useState<string>('');
+
+    
+
+
+    const clickHandler = () => {
+        // DEBUG:
+        console.log('submitted');
+        console.log(input);
+        setCode(input);
+    };
+
+    
+    const html = `
+        <script>${code}</script>
+        `;
+
+    return (
+        <div>
+            <textarea 
+                onChange={(e) => setInput(e.target.value)} 
+                value={input} 
+            />
+            <button onClick={clickHandler} >submit</button>
+            <iframe srcDoc={html} sandbox="allow-scripts" title="awesome-frame" />
+        </div>
+    );
+};
+```
+
+```JavaScript
+// textareaへ入力したコード
+import reactDOM from 'react-dom';
+
+// ...
+```
+
+```bash
+# 発生するエラー
+Uncaught Syntax Error: Invalid or unexpected token
+```
