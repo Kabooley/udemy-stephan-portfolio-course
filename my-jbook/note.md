@@ -1924,53 +1924,68 @@ useRefの戻り値をユーザ定義コンポーネントのpropとして渡す
 
 ことでrefをバケツリレーできるようになる。
 
-TODO: onclick のハンドラが同期呼出である模様...await呼び出しできないかしら...
-
-
 -- 3/26
+
 
 ## JavaScript文字列コードを実行させる方法の話
 
 #### なぜscriptタグへの埋め込みではだめなのか
 
-- escapeしなくてはならない
-- 埋め込むJSコード文字列が長すぎるとブラウザがその文字列を分割して挿入したりするので予期しない
+の追求。
+
+TEST@codesandbox
 
 ```TypeScript
-import { useState } from 'react';
+// src/components/editor
+import { useState, useEffect, useRef } from 'react';
+import { bundler } from '../bundler';
 
-export const Cell = () => {
+const Editor = () => {
+    const previewFrame = useRef<any>();
     const [input, setInput] = useState<string>('');
     const [code, setCode] = useState<string>('');
 
-    
+    const htmlTemplate = `
+    <html>
+      <head></head>
+      <body>
+        <div id="root">
+          <script>
+            ${code}
+          </script>
+        </div>
+      </body>
+    </html>
+    `;
 
+    const onClick = async () => {
 
-    const clickHandler = () => {
-        // DEBUG:
-        console.log('submitted');
-        console.log(input);
-        setCode(input);
+        const result = await bundler(input);
+
+        setCode(result.code);
+
+        // NOTE: DON'T FORGET 'contentWindow', and pass '*'
+        previewFrame.current.contentWindow.postMessage({
+            code: result.code
+        }, '*');
     };
 
-    
-    const html = `
-        <script>${code}</script>
-        `;
-
     return (
-        <div>
-            <textarea 
-                onChange={(e) => setInput(e.target.value)} 
-                value={input} 
-            />
-            <button onClick={clickHandler} >submit</button>
-            <iframe srcDoc={html} sandbox="allow-scripts" title="awesome-frame" />
+        <div className="editor-form">
+            <textarea value={input} onChange={(e) => setInput(e.target.value)} />
+            <button onClick={onClick}>Submit</button>
+            <pre>{code}</pre>
+                <iframe  
+                    ref={previewFrame}
+                    srcDoc={htmlTemplate}   
+                    sandbox="allow-scripts" 
+                />
         </div>
     );
 };
-```
 
+export default Editor;
+```
 ```JavaScript
 // textareaへ入力したコード
 import reactDOM from 'react-dom';

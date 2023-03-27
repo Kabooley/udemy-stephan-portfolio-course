@@ -6,28 +6,29 @@ import { bundler } from '../bundler';
 //     code: string
 // };
 
-const htmlTemplate = `
-<html>
-  <head></head>
-  <body>
-    <div id="root">
-      <script>
-        window.addEventListener('message', (e) => {
-          try {
-            console.log(e);
-            // TODO: evalじゃない方法
-            eval(e.data);
-          }
-          catch(err) {
-            // ここにエラー時にどうするかの挙動を設ければよい
-            console.error(err);
-          }
-        }, false);
-      </script>
-    </div>
-  </body>
-</html>
-`;
+
+// const htmlTemplate = `
+// <html>
+//   <head></head>
+//   <body>
+//     <div id="root">
+//       <script>
+//         window.addEventListener('message', (e) => {
+//           try {
+//             console.log(e);
+//             // TODO: evalじゃない方法
+//             eval(e.data);
+//           }
+//           catch(err) {
+//             // ここにエラー時にどうするかの挙動を設ければよい
+//             console.error(err);
+//           }
+//         }, false);
+//       </script>
+//     </div>
+//   </body>
+// </html>
+// `;
 
 
 const Editor = () => {
@@ -37,17 +38,22 @@ const Editor = () => {
 
     useEffect(() => {
         // DEBUG: 
-    }, [])
+    }, []);
 
-    /**
-     * TODO: I think this click handler is not async
-     * 
-     * If I want this to be executed asynchrnously, then I should call this 
-     * like this...
-     *             <button onClick={onClick}>Submit</button>
-     * to be like tihs
-     *             <button onClick={await onClick()}>Submit</button>
-     * */ 
+    
+    const htmlTemplate = `
+    <html>
+      <head></head>
+      <body>
+        <div id="root">
+          <script>
+            ${code}
+          </script>
+        </div>
+      </body>
+    </html>
+    `;
+
     const onClick = async () => {
 
         // DEBUG: 
@@ -56,14 +62,12 @@ const Editor = () => {
 
         const result = await bundler(input);
 
-        
         // // DEBUG: 
         console.log("[Editor] result:");
         console.log(result);
 
-        setCode(result.code);
+        // setCode(result.code);
 
-        console.log(previewFrame.current.contentWindow);
         console.log(result.code);
 
         // NOTE: DON'T FORGET 'contentWindow', and pass '*'

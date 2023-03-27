@@ -10,7 +10,7 @@ interface iBuildResult {
 const initializeOptions: esbuild.InitializeOptions = {
     // wasmURL:  '/esbuild.wasm',
     worker: true,
-    wasmURL: 'http://unpkg.com/esbuild-wasm/esbuid-wasm'
+    wasmURL: 'http://unpkg.com/esbuild-wasm@0.17.11/esbuild.wasm'
 };
 
 let isInitialized: boolean = false;
