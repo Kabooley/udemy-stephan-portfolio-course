@@ -1,58 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { bundler } from '../bundler';
-// import { Code } from './code';
-// interface iMessage {
-//     // NOTE: this message should send identfier to avoid malicious message
-//     code: string
-// };
-
-
-// const htmlTemplate = `
-// <html>
-//   <head></head>
-//   <body>
-//     <div id="root">
-//       <script>
-//         window.addEventListener('message', (e) => {
-//           try {
-//             console.log(e);
-//             // TODO: evalじゃない方法
-//             eval(e.data);
-//           }
-//           catch(err) {
-//             // ここにエラー時にどうするかの挙動を設ければよい
-//             console.error(err);
-//           }
-//         }, false);
-//       </script>
-//     </div>
-//   </body>
-// </html>
-// `;
-
+import { Preview } from './preview';
 
 const Editor = () => {
     const previewFrame = useRef<any>();
     const [input, setInput] = useState<string>('');
-    const [code, setCode] = useState<string>('');
 
-    useEffect(() => {
-        // DEBUG: 
-    }, []);
-
-    
-    const htmlTemplate = `
-    <html>
-      <head></head>
-      <body>
-        <div id="root">
-          <script>
-            ${code}
-          </script>
-        </div>
-      </body>
-    </html>
-    `;
+    // useEffect(() => {
+    //     // DEBUG: 
+    // }, []);
 
     const onClick = async () => {
 
@@ -64,10 +20,6 @@ const Editor = () => {
 
         // // DEBUG: 
         console.log("[Editor] result:");
-        console.log(result);
-
-        // setCode(result.code);
-
         console.log(result.code);
 
         // NOTE: DON'T FORGET 'contentWindow', and pass '*'
@@ -80,12 +32,8 @@ const Editor = () => {
         <div className="editor-form">
             <textarea value={input} onChange={(e) => setInput(e.target.value)} />
             <button onClick={onClick}>Submit</button>
-            <pre>{code}</pre>
-                <iframe  
-                    ref={previewFrame}
-                    srcDoc={htmlTemplate}   
-                    sandbox="allow-scripts" 
-                />
+                {/* <Preview previewFrame={previewFrame} /> */}
+                <Preview ref={previewFrame} />
         </div>
     );
 };

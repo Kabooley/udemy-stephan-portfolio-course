@@ -1363,7 +1363,7 @@ export const unpkgPathPlugin = (inputCode: string): esbuild.Plugin => {
 
 ```JavaScript
 import { createRoot } from 'react-dom/client';
-import react from 'react';
+import React from 'react';
 import 'bulma/css/bulma.css';
 
 const App = () => {
@@ -1879,11 +1879,17 @@ iframe側は受け取るメッセージをチェックできる。
 
 ということで、まずは送信対象のwindowオブジェクトを取得する必要がある
 
-#### Ref forwarding
+これにはrefを利用する。
+
+#### Ref Forwarding
 
 https://react.dev/learn/manipulating-the-dom-with-refs#accessing-another-components-dom-nodes
 
+解決したい問題：子コンポーネントを参照したいので、ユーザ定義コンポーネントへrefを渡したい
+
 ```TypeScript
+import { Code } from './Code';
+
 const Editor = () => {
     const previewFrame = useRef<any>(null);
 
@@ -1910,7 +1916,7 @@ refは本来DOM nodeへ対して利用できるもので、ユーザ定義のコ
 
 つまり、
 
-`<input ref={ref}/>`はできるけれど、`<Input ref={ref} />`は出来ないということ。
+組み込みコンポーネントの`<input ref={ref}/>`はできるけれど、ユーザ定義コンポーネントの`<Input ref={ref} />`は出来ないということ。
 
 解決方法）
 
@@ -1924,6 +1930,61 @@ useRefの戻り値をユーザ定義コンポーネントのpropとして渡す
 
 ことでrefをバケツリレーできるようになる。
 
+#### RefFowardingを使わないといけないのか？
+
+結論：公式ドキュメントではRefForwardingは一つのオプションであると明記されている
+
+https://legacy.reactjs.org/docs/forwarding-refs.html
+
+> Ref forwarding is a technique for automatically passing a ref through a component to one of its children. **This is typically not necessary for most components in the application.** ...
+
+#### `React.forwardingRef()`の注意
+
+ユーザ定義コンポーネントへrefを渡すとき、ref属性はユーザ定義の名前にしてはならない。
+
+```TypeScript
+// 親コンポーネント
+    // <Preview previewFrame={previewFrame} />
+    <Preview ref={previewFrame} />
+
+// 子コンポーネント
+export const Preview = forwardRef((
+    props: any, 
+    previewFrame: any   // こっちはネーミング可能
+) => {
+    return (
+        <>
+            <iframe  
+                ref={previewFrame}
+                srcDoc={html}   
+                sandbox="allow-scripts" 
+                {...props}
+            />
+        </>
+    );
+});
+```
+
+#### [自習] React RefとDOM
+
+`ref`は
+
+- ReactにおいてDOMを参照する手段である。
+
+つまり、Reactでは`document.querySelector()`の代わりにrefを使えということだ。
+
+- propを使わないでコンポーネントを変更するとき
+
+ただし使いすぎるな。
+
+- 親コンポーネントへ子コンポーネントのDOMを参照（公開）する手段
+
+非推奨の手段である。なぜならカプセル化が破られるから。
+
+React16.3以降なら`RefForwarding`の仕様を推奨するとのこと。
+
+つまり、`RefForwarding`の仕様は必須ではないけれど、この場合では推奨であるということだ。
+
 -- 3/26
 
 
@@ -1931,7 +1992,15 @@ useRefの戻り値をユーザ定義コンポーネントのpropとして渡す
 
 #### なぜscriptタグへの埋め込みではだめなのか
 
-の追求。
+結論：ブラウザは`<script>`タグのネストを認めていないから
+
+---
+
+講義では、文字列の埋め込みなので、モジュールの方に`</script>`があると
+
+勝手にscriptタグを閉じてしまうので途中で切られたモジュールの後半のコードが
+
+インバリッド判定を受けるからという指摘。
 
 TEST@codesandbox
 
@@ -1940,11 +2009,24 @@ TEST@codesandbox
 import { useState, useEffect, useRef } from 'react';
 import { bundler } from '../bundler';
 
+const escapeHtml = (code: string): string => {
+  return code
+  .replace(/\n/g, '')
+  .replace(/"/g, '\\"')
+  .replace(/'/g, "\\'");
+};
+
+
 const Editor = () => {
     const previewFrame = useRef<any>();
     const [input, setInput] = useState<string>('');
     const [code, setCode] = useState<string>('');
 
+    useEffect(() => {
+        // DEBUG: 
+    }, []);
+
+    
     const htmlTemplate = `
     <html>
       <head></head>
@@ -1961,13 +2043,8 @@ const Editor = () => {
     const onClick = async () => {
 
         const result = await bundler(input);
-
-        setCode(result.code);
-
-        // NOTE: DON'T FORGET 'contentWindow', and pass '*'
-        previewFrame.current.contentWindow.postMessage({
-            code: result.code
-        }, '*');
+        // HTMLエスケープさせる関数でHTMLエスケープさせたコードを埋め込む
+        setCode(escapeHtml(result.code));
     };
 
     return (
@@ -1992,8 +2069,63 @@ import reactDOM from 'react-dom';
 
 // ...
 ```
-
 ```bash
 # 発生するエラー
 Uncaught Syntax Error: Invalid or unexpected token
 ```
+
+むしろHTMLエスケープさせたことによって上記のエラーになって、
+
+何なら講義であったようなエラーは起こらなかった。
+
+ならばこのままでいいのか？
+
+講義中のQ&Aで回答が
+
+原因は「`script`タグはネストできないから！」とのこと
+
+さらに示されたgood post of stackoverflow
+
+https://stackoverflow.com/questions/6322541/nested-javascript-templates-is-this-possible-valid
+
+つまり、
+
+```JavaScript
+const html = `
+    <script>
+        ${code}
+    </script>
+`;
+
+// If code is like this...
+const html = `
+    <script>
+        // ....
+        </script>   // Browser stops parsing here and quit reading rest.
+        // ...
+    </script>
+`;
+```
+
+つまり、
+
+もしもcodeの内容が上記のように`</script>`を含むと、
+
+ブラウザは自動的にそこでscriptコードの読み込みを終了してしまうとのこと。
+
+なのでたとえ上記のように`script`タグがネストしていても関係ないのである。
+
+これはブラウザの振る舞いなので、
+
+サーバへ入力コードを送信してそこから変換されてブラウザへ帰されるような場合は
+
+変換次第ではどうにかできるのかも。
+
+ただし私同様にscriptタグのエスケープが不要だった人もいた模様でesbuild-wasmのバージョンの問題なのかしら？
+
+とにかくブラウザの仕様に合わせるべく講義の通りpostMessage() + eval()にするのか...
+
+
+#### postmessage with eval() vs embedding js code directory
+
+AST parserを使ってみては？という提案を発見
