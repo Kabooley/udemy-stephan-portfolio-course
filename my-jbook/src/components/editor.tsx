@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { bundler } from '../bundler';
 import { Preview } from './preview';
+import { Monaco } from './monacoEditor';
+import type * as editor from '@monaco-editor/react/lib/types';
 
 const Editor = () => {
     const previewFrame = useRef<any>();
@@ -9,6 +11,12 @@ const Editor = () => {
     // useEffect(() => {
     //     // DEBUG: 
     // }, []);
+
+    
+	const onChangeHandler: editor.OnChange = (value, event) => {
+        if(value === undefined) setInput('');
+        else setInput(value);
+	} 
 
     const onClick = async () => {
 
@@ -30,7 +38,8 @@ const Editor = () => {
 
     return (
         <div className="editor-form">
-            <textarea value={input} onChange={(e) => setInput(e.target.value)} />
+            {/* <textarea value={input} onChange={(e) => setInput(e.target.value)} /> */}
+            <Monaco onChange={onChangeHandler} value={input} />
             <button onClick={onClick}>Submit</button>
                 {/* <Preview previewFrame={previewFrame} /> */}
                 <Preview ref={previewFrame} />
