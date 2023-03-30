@@ -13,6 +13,9 @@ const Editor = () => {
     // }, []);
 
     
+    /**
+     * An event is emitted when the content of the current model is changed
+     * */ 
 	const onChangeHandler: editor.OnChange = (value, event) => {
         if(value === undefined) setInput('');
         else setInput(value);
