@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { bundler } from '../bundler';
 import { Preview } from './preview';
-import { Monaco } from './monacoEditor';
+import { Monaco } from '../editor/monacoEditor';
 import type * as editor from '@monaco-editor/react/lib/types';
 
 const Editor = () => {

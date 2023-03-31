@@ -34,7 +34,7 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
  * TODO: prettier
  * TODO: エラーはいライティング
  * */ 
-export const Monaco = ({
+const Editor = ({
 	onChange, value
 }: iMonacoProps) => {
 	const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
@@ -67,7 +67,6 @@ export const Monaco = ({
 
 	return (
 		<MonacoEditor
-			theme={monacoTheme}
 			width="400px"
 			height="300px"
 			defaultLanguage='JavaScript'
@@ -81,3 +80,5 @@ export const Monaco = ({
 		/>
 	);
 }
+
+export default Editor;

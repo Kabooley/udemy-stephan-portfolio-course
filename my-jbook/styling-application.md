@@ -1,5 +1,11 @@
 # Styling Application
 
+## 実装すること
+
+- エディタパッケージを導入してVSCodeっぽいエディタを実装する
+- エディタにはdiffエディタ機能を設ける
+- 講義と異なるレイアウトになるかも(リサイズは可能にする)
+
 ## Monaco editor
 
 https://github.com/microsoft/monaco-editor
