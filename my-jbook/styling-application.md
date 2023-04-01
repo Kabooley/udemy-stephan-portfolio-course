@@ -6,6 +6,17 @@
 - エディタにはdiffエディタ機能を設ける
 - 講義と異なるレイアウトになるかも(リサイズは可能にする)
 
+## どういうレイアウトにするか
+
+layout-index
+  header
+  content
+    [
+      editor or diffeditor
+      preview
+    ]
+
+
 ## Monaco editor
 
 https://github.com/microsoft/monaco-editor
@@ -135,4 +146,37 @@ const onChange = (e: React.FormEvent<HTMLInputElement>) => {
 const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const newValue = e.target.value;
 }
+```
+
+
+## [TypeScript] Tips
+
+#### `useRef<HTMLXXX>()` possibly null
+
+```TypeScript
+import React, { useState, useRef } from 'react';
+
+const ContentSection = () => {
+  // ...
+    const previewRef = useRef<HTMLIFrameElement>(null);
+
+    const onSubmitHandler = async (): Promise<void> => {
+        if(!previewRef.current) return;
+
+        const result = await bundler(code);
+
+        // NOTE: ERROR: previewRef.current.contentWindow possibly null
+        previewRef.current.contentWindow.postMessage({
+            code: result.code
+        }, '*');
+    };
+
+    return (
+        <div>
+            // ...
+            <Preview ref={previewRef} />
+        </div>
+    );
+}
+
 ```

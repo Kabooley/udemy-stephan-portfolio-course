@@ -1,10 +1,10 @@
 import React from 'react';
-import HeaderSection from '../sections/Header';
+import HeaderSection from '../../sections/Header';
 
 const Header = () => {
     return (
         <div>
-            HEADER
+            <HeaderSection />
         </div>
     );
 };
