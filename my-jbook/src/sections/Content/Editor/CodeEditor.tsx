@@ -1,12 +1,19 @@
+/**
+ * make Monaco editor like VSCode
+ * 
+ * TODO: VSCodeのようにしたい
+ * TODO: eslint
+ * TODO: prettier
+ * TODO: エラーはいライティング
+ * */ 
 import type * as editor from '@monaco-editor/react/lib/types';
 import MonacoEditor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import React, { useState, useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
-	value: string
-}
+};
 
 const defaultValue = "const a = 'AWESOME'";
 
@@ -20,21 +27,10 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	fontSize: 16,
 	scrollBeyondLastLine: false,
 	automaticLayout: true,
-}
+};
 
-/**
- * make Monaco editor like VSCode
- * 
- * 
- * TODO: monaco と editorのインスタンスの違いとは？
- * TODO: editor.tsxとmonaco.tsxの機能をもっとわかりやすくすみわけできないかしら
- * TODO: VSCodeのようにしたい
- * TODO: eslint
- * TODO: prettier
- * TODO: エラーはいライティング
- * */ 
 const CodeEditor = ({
-	onChangeHandler, value
+	onChangeHandler
 }: iMonacoProps) => {
 	const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
 
@@ -57,14 +53,14 @@ const CodeEditor = ({
 	};
 
     /***
-     * @param {string | undefined} value - 
+     * @param {string | undefined} v - 
      * @param {monaco.editor.IModelContentChangedEvent} e - 
      * 
      * NOTE: Reduxを導入するのは後なのでひとまずバケツリレーで動くものを作る
      * */ 
-    const onChange: editor.OnChange = (value, e) => {
-        onChangeHandler(value === undefined ? "" : value);
-    }
+    const onChange: editor.OnChange = (v, e) => {
+        onChangeHandler(v === undefined ? "" : v);
+    };
 
 	/***
 	 * Event emitted when the content of the current model is changed
@@ -81,7 +77,6 @@ const CodeEditor = ({
 			defaultLanguage='JavaScript'
 			defaultValue={defaultValue}
 			options={options}
-			value={value}
 			beforeMount={beforeMount}
 			onMount={onDidMount}
 			onChange={onChange}

@@ -47,7 +47,7 @@ const DiffEditor = () => {
                 // onValidate={onValidate}
                 options={options}
                 beforeMount={beforeMount}
-                onMount={onDidMount}
+                // onMount={onDidMount}
             />
         </div>
     );

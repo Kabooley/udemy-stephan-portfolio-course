@@ -37,47 +37,10 @@ DirectXにたいするDXLibraryみたいなやつや
 
 ## `@monaco-editor/react`
 
-- `Editor`コンポーネントをimportしてつかうことでエディタが表示される
+https://github.com/suren-atoyan/monaco-react
 
-- editorインスタンスとmonacoインスタンスの2つがある
+TODO: ノート貼り付け
 
-onMountハンドラを見ると、2つのインスタンスを引数として取得する模様。
-
-それぞれどう使い分けるのだ？
-
-```TypeScript
-export type OnMount = (
-  editor: monaco.editor.IStandaloneCodeEditor,
-  monaco: Monaco,
-) => void;
-```
-```TypeScript
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-
-// monaco
-export type Monaco = typeof monaco;
-```
-
-Monacoは本家のmonaco-editorのAPIのインスタンスみたい。
-
-Editorの方も結局本家monaco-editorのapiを指している
-
-```TypeScript
-
-// ICodeEditor <-- IEditorと継承している模様
-  export interface IStandaloneCodeEditor extends ICodeEditor {
-      updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
-      addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-      createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
-      addAction(descriptor: IActionDescriptor): IDisposable;
-  }
-```
-
-そのままeditorのインスタンスなのかしら
-
-結局わからん。
-
-ただ公式ではuseRefで指すのはeditorの方だと言っているのでそうすればいいのかと。
 
 #### 公式のDemoとソースコードあるからこれを参考に作ればいいのでは？
 
@@ -127,6 +90,42 @@ export default Layout;
 
 // 
 ```
+
+## 実装 コードエディタ
+
+#### エディに入力された値を取得する仕組み
+
+NOTE: あとでredux使うので一時的な話
+
+```bash
+src/sections/Content/
+
+index.tsx
+  Editor/CodeEditor.tsx
+  Editor/DiffEditor.tsx
+  Preview/index.tsx
+```
+ひとまずonChangeHandlerをindex.tsxで定義してprops経由でCodeEditor.tsxへ渡す方法をとる
+
+#### DiffEditorをどうやって表示させるのか
+
+どんな機能を提供したいのかに依る
+
+TODO: あとで実装。ひとまずCodeEditorに基本機能を盛り込んで
+
+#### Prettier
+
+#### ESLint
+
+#### TypeScriptコード補完
+
+#### エラー・ハイライティング
+
+## 実装 レイアウト
+
+#### エディタとプレビュー画面を横に並べる
+
+
 
 ## [React Tips] `onChange` event type
 

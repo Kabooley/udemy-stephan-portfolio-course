@@ -1,11 +1,11 @@
 import { createRoot } from 'react-dom/client';
-import Editor from './components/editor';
+import Layout from './layout';
 
 
 const App = () => {
     return (
         <div>
-            <Editor />
+            <Layout />
         </div>
     );
 };
