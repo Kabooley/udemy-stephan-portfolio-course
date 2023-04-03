@@ -1,0 +1,11 @@
+/* CSS for ContentSection */
+.content-section {
+    position: relative;
+    display: flex;
+}
+
+.content-section button {
+    position: absolute;
+    bottom: 0;
+    right: 200px;
+}

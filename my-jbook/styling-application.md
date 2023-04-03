@@ -6,6 +6,27 @@
 - エディタにはdiffエディタ機能を設ける
 - 講義と異なるレイアウトになるかも(リサイズは可能にする)
 
+## メモ
+
+テストコード:
+
+```JavaScript
+import { createRoot } from 'react-dom/client';
+import React from 'react';
+import 'bulma/css/bulma.css';
+
+const App = () => {
+    return (
+        <div className="container">
+          <span>REACT</span>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
 ## Monaco editor
 
 https://github.com/microsoft/monaco-editor
@@ -241,19 +262,93 @@ index.tsx
 
 TODO: あとで実装。ひとまずCodeEditorに基本機能を盛り込んで
 
+#### エラー・ハイライティング
+
+ユーザ入力されたコードがエラーを起こしたときにiframeにエラーが起こったことを表示させるようにする。
+
+```JavaScript
+const previewTemplate = `
+<html>
+  <head></head>
+  <body>
+    <div id="root"></div>
+      <script>
+        window.addEventListener('message', (e) => {
+          try {
+            console.log(e);
+            if(e.data === undefined || e.data.code === undefined) throw new Error("Error: property data or data.code is undefined");
+            // NOTE: using eval() !
+            eval(e.data.code);
+          }
+          catch(err) {
+            // NOTE: stack is not standard property of Error object.
+            const { message, name, stack } = err;
+            const root = document.querySelector('#root');
+            root.innerHTML = '<div style="color: red;"><h3>' + name + '</h3>' + message + stack +'</div>';
+            console.error(err);
+          }
+        }, false);
+      </script>
+  </body>
+</html>
+`;
+```
+
+TODO: 正確に1行ずつ表示させたいけど後回し。
+
 #### Prettier
 
 #### ESLint
 
 #### TypeScriptコード補完
 
-#### エラー・ハイライティング
 
 ## 実装 レイアウト
 
 #### エディタとプレビュー画面を横に並べる
 
+## 実装 エディタ機能
 
+#### テンプレートHTMLをinnerHTML = ''などさせないようにする
+
+今ユーザが
+
+```JavaScript
+document.querySelector('#root').innerHTML = "";
+```
+
+を入力したとしたら、
+
+以降previewのHTML内部に`div#root`が永遠に消失してしまう。
+
+このような場合の対策。
+
+解決策：bundlingする前に常にテンプレートHTMLをリセットする
+
+```JavaScript
+  const onSubmitHandler = async (): Promise<void> => {
+      if(previewRef.current && previewRef.current.contentWindow) {
+
+          // NOTE: To AVOID srcdoc to be empty by user.
+          previewRef.current.srcdoc = previewTemplate;
+
+          const result = await bundler(code);
+
+          previewRef.current.contentWindow.postMessage({
+              code: result.code
+          }, '*');
+      }
+  };
+```
+
+こうすれば`document.querySelector('#root').innerHTML = ""`というコードを入力されても次のバンドル時には元に戻っている。
+
+
+#### フォーマット
+
+#### クリア
+
+いらないかも。
 
 ## [React Tips] `onChange` event type
 
@@ -307,3 +402,19 @@ const ContentSection = () => {
 }
 
 ```
+
+## [JavaScript] Tips
+
+#### Get error stack trace
+
+https://stackoverflow.com/questions/591857/how-can-i-get-a-javascript-stack-trace-when-i-throw-an-exception
+
+`Error`オブジェクトの`stack`プロパティを呼び出すだけ。
+
+しかし、
+
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/stack
+
+`Error.prototype.stack` is not standarad.
+
+採用されていないブラウザがあったり表現のされ方が異なるかもしれない。

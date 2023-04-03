@@ -72,9 +72,11 @@ const CodeEditor = ({
 
 	return (
 		<MonacoEditor
+			theme='vs-dark'
 			width="400px"
 			height="300px"
 			defaultLanguage='JavaScript'
+			language='javaScript'
 			defaultValue={defaultValue}
 			options={options}
 			beforeMount={beforeMount}
