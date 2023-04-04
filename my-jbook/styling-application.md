@@ -296,8 +296,6 @@ const previewTemplate = `
 
 TODO: 正確に1行ずつ表示させたいけど後回し。
 
-#### Prettier
-
 #### ESLint
 
 #### TypeScriptコード補完
@@ -346,9 +344,34 @@ document.querySelector('#root').innerHTML = "";
 
 #### フォーマット
 
+フォーマットボタンを設け、押されたらフォーマットするようにする
+
+タスク：
+
+- formatはユーザがボタンをクリックしたら発動するようにする
+- sections/Content/index.tsxのonFormatHandlerで以下を実現する
+- 現在の入力された値を取得する
+- 入力値をフォーマットさせる
+- フォーマットされた値を再度textareaへセットする
+
+入力された値の取得：
+
+これが難題で...
+
+ContentSection.tsx
+  ─────Editor/index.tsx
+という親子関係なので子コンポーネントの現在の値を任意のタイミングで取得できるようにしなくてはならない
+
+refforwardingができない
+
+MonacoEditorコンポーネントはユーザ定義コンポーネントなのでrefプロパティは通用しない。
+
+
+
 #### クリア
 
 いらないかも。
+
 
 ## [React Tips] `onChange` event type
 

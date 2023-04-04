@@ -9,7 +9,7 @@
 import type * as editor from '@monaco-editor/react/lib/types';
 import MonacoEditor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { useRef } from 'react';
+import React, { useRef, forwardRef } from 'react';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
@@ -29,9 +29,10 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	automaticLayout: true,
 };
 
-const CodeEditor = ({
-	onChangeHandler
-}: iMonacoProps) => {
+const CodeEditor = forwardRef((
+	{onChangeHandler} : iMonacoProps,
+	ref: React.ForwardedRef<monaco.editor.IStandaloneCodeEditor>
+) => {
 	const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
 
 	/***
@@ -49,7 +50,7 @@ const CodeEditor = ({
 	 * */ 
 	const onDidMount: editor.OnMount = (e, m) => {
 		console.log("[monaco] on did mount");
-		refEditor.current = e;
+		refEditor.current = e;);
 	};
 
     /***
@@ -85,6 +86,6 @@ const CodeEditor = ({
 			onValidate={onValidate}
 		/>
 	);
-}
+});
 
 export default CodeEditor;
