@@ -8,6 +8,7 @@ import DiffEditor from './Editor/DiffEditor';
 import prettier from 'prettier';
 import parser from 'prettier/parser-babel';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import * as editor from '@monaco-editor/react/lib/types';
 import './index.css';
 
 // millisec
@@ -35,13 +36,40 @@ const ContentSection = (): JSX.Element => {
     };
 
     /**
+     * Implementation of @monaco-editor/react MonacoEditor component handler.
+	 * Event emitted when editor is mounted.
+	 * */ 
+	const onDidMount: editor.OnMount = (e, m) => {
+		console.log("[monaco] on did mount");
+        editorRef.current = e;
+	};
+
+    /**
      * editor.OnDidMountを利用する
      * */ 
     const onFormatHandler = () => {
-        // TODO: define how to format with prettier
+        if(editorRef.current === undefined) return;
         // get current value
+        const unformatted = editorRef.current.getValue();
+
+        // DEBUG:
+        console.log(unformatted);
+
         // format them
+        const formatted = prettier.format(unformatted, {
+            parser: 'babel',
+            plugins: [parser],
+            useTabs: false,
+            semi: true,
+            singleQuote: true,    
+        })
+        .replace(/\n$/, '');
+
+        // DEBUG:
+        console.log(formatted);
+
         // set formatted value
+        editorRef.current.setValue(formatted);
     }
 
     const onSubmitHandler = async (): Promise<void> => {
@@ -65,12 +93,12 @@ const ContentSection = (): JSX.Element => {
                 isEditor === "editor"
                 ? <CodeEditor 
                     onChangeHandler={onChangeHandler} 
-                    ref={editorRef} 
+                    onMount={onDidMount}
                   />
                 : <DiffEditor />
             }
             <button className="button" onClick={onSubmitHandler} >submit</button>
-            <button className="button format" onClick={onFormatHandler} >submit</button>
+            <button className="" onClick={onFormatHandler} >format</button>
             <Preview ref={previewRef} />
         </div>
     );

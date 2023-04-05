@@ -9,10 +9,11 @@
 import type * as editor from '@monaco-editor/react/lib/types';
 import MonacoEditor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import React, { useRef, forwardRef } from 'react';
+import React from 'react';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
+	onMount: editor.OnMount;
 };
 
 const defaultValue = "const a = 'AWESOME'";
@@ -29,11 +30,10 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	automaticLayout: true,
 };
 
-const CodeEditor = forwardRef((
-	{onChangeHandler} : iMonacoProps,
-	ref: React.ForwardedRef<monaco.editor.IStandaloneCodeEditor>
+const CodeEditor = (
+	{ onChangeHandler, onMount } : iMonacoProps
 ) => {
-	const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
+	// const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
 
 	/***
 	 * An event is emitted before the editor is mounted. 
@@ -43,14 +43,6 @@ const CodeEditor = forwardRef((
 	 * */ 
 	const beforeMount: editor.BeforeMount = (m) => {
 		console.log("[monaco] before mount");
-	};
-
-	/**
-	 * Event emitted when editor is mounted.
-	 * */ 
-	const onDidMount: editor.OnMount = (e, m) => {
-		console.log("[monaco] on did mount");
-		refEditor.current = e;);
 	};
 
     /***
@@ -70,6 +62,15 @@ const CodeEditor = forwardRef((
 	const onValidate: editor.OnValidate = (markers) => {
 		console.log("[monaco] on validate");
 	};
+	
+	// /**
+	//  * Event emitted when editor is mounted.
+	//  * */ 
+	// const onDidMount: editor.OnMount = (e, m) => {
+	// 	console.log("[monaco] on did mount");
+	// 	refEditor.current = e;
+	// 	ref.current = e;
+	// };
 
 	return (
 		<MonacoEditor
@@ -81,11 +82,11 @@ const CodeEditor = forwardRef((
 			defaultValue={defaultValue}
 			options={options}
 			beforeMount={beforeMount}
-			onMount={onDidMount}
+			onMount={onMount}
 			onChange={onChange}
 			onValidate={onValidate}
 		/>
 	);
-});
+};
 
 export default CodeEditor;

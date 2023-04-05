@@ -354,19 +354,100 @@ document.querySelector('#root').innerHTML = "";
 - 入力値をフォーマットさせる
 - フォーマットされた値を再度textareaへセットする
 
-入力された値の取得：
+入力された値の取得：editor.OnMountを親コンポーネントから持ってくることにする
 
-これが難題で...
+```TypeScript
+// src/sections/Content/index.tsx
+import React, { useState, useRef, useEffect } from 'react';
+// ...
+import prettier from 'prettier';
+import parser from 'prettier/parser-babel';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import * as editor from '@monaco-editor/react/lib/types';
+import './index.css';
 
-ContentSection.tsx
-  ─────Editor/index.tsx
-という親子関係なので子コンポーネントの現在の値を任意のタイミングで取得できるようにしなくてはならない
+// ...
 
-refforwardingができない
+const ContentSection = (): JSX.Element => {
+    // set iIsEditor
+    const [isEditor, setIsEditor] = useState<iIsEditor>("editor");
+    const [code, setCode] = useState<string>("");
+    const editorRef = useRef<monaco.editor.IStandaloneCodeEditor>();
+    const previewRef = useRef<HTMLIFrameElement>(null);
 
-MonacoEditorコンポーネントはユーザ定義コンポーネントなのでrefプロパティは通用しない。
+    const onChangeHandler = (value: string): void => {
+        setCode(value);
+    };
 
+    /**
+     * NOTE: Implementation of @monaco-editor/react MonacoEditor component handler.
+      * Event emitted when editor is mounted.
+      * 
+      * Method to get ref points Editor DOM
+      * */ 
+      const onDidMount: editor.OnMount = (e, m) => {
+        console.log("[monaco] on did mount");
+            editorRef.current = e;
+      };
 
+    /**
+     * editor.OnDidMountを利用する
+     * */ 
+    const onFormatHandler = () => {
+        if(editorRef.current === undefined) return;
+        // get current value
+        const unformatted = editorRef.current.getValue();
+
+        // DEBUG:
+        console.log(unformatted);
+
+        // format them
+        const formatted = prettier.format(unformatted, {
+            parser: 'babel',
+            plugins: [parser],
+            useTabs: false,
+            semi: true,
+            singleQuote: true,    
+        })
+        .replace(/\n$/, '');
+
+        // DEBUG:
+        console.log(formatted);
+
+        // set formatted value
+        editorRef.current.setValue(formatted);
+    }
+
+    const onSubmitHandler = async (): Promise<void> => {
+      // ...
+    };
+
+    return (
+        <div className="content-section">
+            {
+                isEditor === "editor"
+                ? <CodeEditor 
+                    onChangeHandler={onChangeHandler} 
+                    // NOTE: To get editor ref
+                    onMount={onDidMount}
+                  />
+                : <DiffEditor />
+            }
+            <button className="button" onClick={onSubmitHandler} >submit</button>
+            <button className="" onClick={onFormatHandler} >format</button>
+            <Preview ref={previewRef} />
+        </div>
+    );
+}
+```
+
+問題なく値を取得できている。
+
+NOTE: ユーザが入力できるコードはJavaScriptだけである。そのうち他の言語も対応できるようにしたいねぇ
+
+#### コードの色付け
+
+VSCode同様にしたいのだが...
 
 #### クリア
 
