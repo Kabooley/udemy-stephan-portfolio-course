@@ -296,10 +296,6 @@ const previewTemplate = `
 
 TODO: 正確に1行ずつ表示させたいけど後回し。
 
-#### ESLint
-
-#### TypeScriptコード補完
-
 
 ## 実装 レイアウト
 
@@ -445,9 +441,90 @@ const ContentSection = (): JSX.Element => {
 
 NOTE: ユーザが入力できるコードはJavaScriptだけである。そのうち他の言語も対応できるようにしたいねぇ
 
-#### コードの色付け
+#### Syntax Highlighting
 
-VSCode同様にしたいのだが...
+`Editor`インスタンスの`language`, `defaultLanguage`プロパティに正しい文字列を渡してやる必要がある。
+
+正: `javascript`
+誤: `JavaScript`
+
+何が正しいのかは...
+
+https://github.com/suren-atoyan/monaco-react#props
+
+https://github.com/microsoft/monaco-editor/tree/main/src/basic-languages
+
+で示されている文字列となる。
+
+正しく渡せばデフォルトでVSCode同様になる。
+
+#### IntelliScense
+
+はデフォルトで入っている。
+
+たとえば、
+
+```JavaScript
+import React from 'react';
+
+// こんな感じにオブジェクト.と入力したらそのオブジェクトのプロパティなどが
+// 一覧でカーソル付近に表示される機能
+React.
+
+// またはエディタをフォーカス中に`ctrl`+`space`で一覧が表示される
+```
+
+#### 構文チェック
+
+https://www.npmjs.com/package/monaco-jsx-syntax-highlight
+
+```TypeScript
+	const onDidMount: editor.OnMount = (e, m) => {
+		m.languages.typescript.typescriptDefaults.setCompilerOptions({
+			jsx: m.languages.typescript.JsxEmit.Preserve,
+			target: m.languages.typescript.ScriptTarget.ES2020,
+			esModuleInterop: true
+		});
+	};
+```
+
+#### 他、搭載機能
+
+https://help.hackerearth.com/hc/en-us/articles/900000796563-the-monaco-editor
+
+に書いてあるような機能はデフォである模様。
+
+- linting: ある。その言語の間違ったコード部分はエラーの波線表示してどう間違っているのか示す
+
+#### JSX Highlighting
+
+しかしJSXはハイライトしてくれない。すべて同じ白色である(vs-darkテーマなら)。
+
+とにかくjsx-highlighterを導入してみる
+
+講義だと導入はアプリケーションのクラッシュの原因になるからreactバージョンをダウングレードしていた。
+
+今回は現行バージョンで導入できるのか試してみる
+
+https://luminaxster.github.io/syntax-highlighter/
+
+https://github.com/luminaxster/syntax-highlighter
+
+JSX-highlighterのインスタンスはいつどこで生成すればいいのだ？
+
+`@monaco-editor/react`を使用するにあたっての既知のエラー：
+
+https://github.com/luminaxster/syntax-highlighter#troubleshooting
+
+```bash
+ReferenceError: document is not defined
+```
+
+> @monaco-editor/react の場合、Monaco のセットアップが完了する前にハイライターをインスタンス化している可能性があります。
+
+> 詳細についてはライブデモをご覧ください。
+
+TODO: よくわからんがライブデモをいじって理解するほかないか
 
 #### クリア
 

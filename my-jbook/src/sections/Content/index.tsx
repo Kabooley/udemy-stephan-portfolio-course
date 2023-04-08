@@ -46,16 +46,18 @@ const ContentSection = (): JSX.Element => {
 
     /**
      * editor.OnDidMountを利用する
+     * 
+     * - コードのフォーマットを行う
      * */ 
     const onFormatHandler = () => {
         if(editorRef.current === undefined) return;
-        // get current value
+
+        // FORMAT
         const unformatted = editorRef.current.getValue();
 
         // DEBUG:
         console.log(unformatted);
 
-        // format them
         const formatted = prettier.format(unformatted, {
             parser: 'babel',
             plugins: [parser],
@@ -68,7 +70,6 @@ const ContentSection = (): JSX.Element => {
         // DEBUG:
         console.log(formatted);
 
-        // set formatted value
         editorRef.current.setValue(formatted);
     }
 

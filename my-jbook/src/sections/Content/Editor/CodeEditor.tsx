@@ -11,6 +11,11 @@ import MonacoEditor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import React from 'react';
 
+// modules for jsx-highlighter
+import {parse} from "@babel/parser";
+import traverse from "@babel/traverse";
+import MonacoJSXHighlighter from 'monaco-jsx-highlighter';
+
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
 	onMount: editor.OnMount;
@@ -28,7 +33,24 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	fontSize: 16,
 	scrollBeyondLastLine: false,
 	automaticLayout: true,
+	colorDecorators: true
 };
+
+/**
+ * Options for jsx-highlighter
+ * 
+ * */ 
+const defaultOptions = {
+	parser: 'babel', // for reference only, only babel is supported right now
+	isHighlightGlyph: false, // if JSX elements should decorate the line number gutter
+	iShowHover: false, // if JSX types should  tooltip with their type info
+	isUseSeparateElementStyles: false, // if opening elements and closing elements have different styling
+	// you can pass your own custom APIs, check core/ and uitls/ for more details
+	monacoEditorManager: null,
+	decoratorMapper: null,
+	jsxCommenter: null,
+ };
+
 
 const CodeEditor = (
 	{ onChangeHandler, onMount } : iMonacoProps
@@ -63,26 +85,30 @@ const CodeEditor = (
 		console.log("[monaco] on validate");
 	};
 	
-	// /**
-	//  * Event emitted when editor is mounted.
-	//  * */ 
-	// const onDidMount: editor.OnMount = (e, m) => {
-	// 	console.log("[monaco] on did mount");
-	// 	refEditor.current = e;
-	// 	ref.current = e;
-	// };
+	/**
+	 * Event emitted when editor is mounted.
+	 * 
+	 * syntax highlight
+	 * */ 
+	const onDidMount: editor.OnMount = (e, m) => {
+		m.languages.typescript.typescriptDefaults.setCompilerOptions({
+			jsx: m.languages.typescript.JsxEmit.Preserve,
+			target: m.languages.typescript.ScriptTarget.ES2020,
+			esModuleInterop: true
+		});
+	};
 
 	return (
 		<MonacoEditor
 			theme='vs-dark'
 			width="400px"
 			height="300px"
-			defaultLanguage='JavaScript'
-			language='javaScript'
+			defaultLanguage='javascript'
+			language='javascript'
 			defaultValue={defaultValue}
 			options={options}
 			beforeMount={beforeMount}
-			onMount={onMount}
+			onMount={onDidMount}
 			onChange={onChange}
 			onValidate={onValidate}
 		/>
