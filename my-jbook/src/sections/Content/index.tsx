@@ -40,8 +40,26 @@ const ContentSection = (): JSX.Element => {
 	 * Event emitted when editor is mounted.
 	 * */ 
 	const onDidMount: editor.OnMount = (e, m) => {
+        // DEBUG:
 		console.log("[monaco] on did mount");
+        
         editorRef.current = e;
+
+        m.languages.typescript.typescriptDefaults.setCompilerOptions({
+			jsx: m.languages.typescript.JsxEmit.Preserve,
+			target: m.languages.typescript.ScriptTarget.ES2020,
+			esModuleInterop: true
+		});
+		// m.languages.typescript.typescriptDefaults.setCompilerOptions({
+		// 	target: m.languages.typescript.ScriptTarget.ES2016,
+		// 	allowNonTsExtensions: true,
+		// 	moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
+		// 	module: m.languages.typescript.ModuleKind.CommonJS,
+		// 	noEmit: true,
+		// 	typeRoots: ["node_modules/@types"],
+		// 	jsx: m.languages.typescript.JsxEmit.React,
+		// 	jsxFactory: 'JSXAlone.createElement',
+		//   })
 	};
 
     /**

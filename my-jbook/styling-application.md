@@ -526,6 +526,50 @@ ReferenceError: document is not defined
 
 TODO: よくわからんがライブデモをいじって理解するほかないか
 
+live demoによれば、monaco-editorのeditorインスタンスの、OnMount時にjsx-highlighterをロードすればいい模様
+
+このとき動的ローディングを行っている
+
+#### まとめREADME
+
+> Babel を使用して Monaco エディターで JSX 構文を強調表示 (およびコメント) するための拡張可能なライブラリ。魔法を実行した後に AST を公開するため、独自の構文ベースまたはカスタムのハイライトを追加できます。
+
+v1.x以降の新しい機能:
+
+- JSCodeShift要らずでBabelを直接利用できるようになったよ
+
+依存関係:
+
+> これには monaco-editor 、 @babel/parser 、および @babel/traverse が必要です。便宜上、これらはピアの依存関係としてリストされ、参照によって渡されます (遅延読み込みを実行できるようにするため)。 monaco-jsx-highlighter; の前にインストールしてください。
+
+Usage:
+
+
+NOTE: `@monaco-editor.react`を使っている場合は`monaco`のセットアップが完了する前にhighlighterをインスタンス化してはならないらしい
+`monaco-jsx-highlighter`のインスタンスを生成する
+
+NOTE: 方法はわかったけれど、結局型情報がないためTypeScript環境では使うことができない。断念。
+
+#### 他のJSXハイライト方法
+
+https://github.com/microsoft/monaco-editor/issues/264
+
+https://github.com/cancerberoSgx/jsx-alone/blob/master/jsx-explorer/HOWTO_JSX_MONACO.md
+
+たぶんこのリポジトリのものを実現できればJSXハイライティングが実現できる。
+
+難しいけどな！
+
+とにかくこの`HOWTO_JSX_MONACO.md`を解読すればできそうである。
+
+#### web workerについて学習の必要性あり
+
+まぁおそかれはやかれ。
+
+
+
+
+
 #### クリア
 
 いらないかも。

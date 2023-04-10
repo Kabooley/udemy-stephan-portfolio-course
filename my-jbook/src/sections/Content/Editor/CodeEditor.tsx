@@ -1,20 +1,8 @@
-/**
- * make Monaco editor like VSCode
- * 
- * TODO: VSCodeのようにしたい
- * TODO: eslint
- * TODO: prettier
- * TODO: エラーはいライティング
- * */ 
 import type * as editor from '@monaco-editor/react/lib/types';
 import MonacoEditor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import React from 'react';
+// import React from 'react';
 
-// modules for jsx-highlighter
-import {parse} from "@babel/parser";
-import traverse from "@babel/traverse";
-import MonacoJSXHighlighter from 'monaco-jsx-highlighter';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
@@ -23,7 +11,7 @@ interface iMonacoProps {
 
 const defaultValue = "const a = 'AWESOME'";
 
-// monaco editor Editor component options
+// monaco-editor Editor component options
 const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	wordWrap: 'on',
 	minimap: { enabled: false },
@@ -35,21 +23,6 @@ const options: monaco.editor.IStandaloneEditorConstructionOptions = {
 	automaticLayout: true,
 	colorDecorators: true
 };
-
-/**
- * Options for jsx-highlighter
- * 
- * */ 
-const defaultOptions = {
-	parser: 'babel', // for reference only, only babel is supported right now
-	isHighlightGlyph: false, // if JSX elements should decorate the line number gutter
-	iShowHover: false, // if JSX types should  tooltip with their type info
-	isUseSeparateElementStyles: false, // if opening elements and closing elements have different styling
-	// you can pass your own custom APIs, check core/ and uitls/ for more details
-	monacoEditorManager: null,
-	decoratorMapper: null,
-	jsxCommenter: null,
- };
 
 
 const CodeEditor = (
@@ -90,13 +63,8 @@ const CodeEditor = (
 	 * 
 	 * syntax highlight
 	 * */ 
-	const onDidMount: editor.OnMount = (e, m) => {
-		m.languages.typescript.typescriptDefaults.setCompilerOptions({
-			jsx: m.languages.typescript.JsxEmit.Preserve,
-			target: m.languages.typescript.ScriptTarget.ES2020,
-			esModuleInterop: true
-		});
-	};
+	// const onDidMount: editor.OnMount = (e, m) => {
+	// };
 
 	return (
 		<MonacoEditor
@@ -108,7 +76,7 @@ const CodeEditor = (
 			defaultValue={defaultValue}
 			options={options}
 			beforeMount={beforeMount}
-			onMount={onDidMount}
+			onMount={onMount}
 			onChange={onChange}
 			onValidate={onValidate}
 		/>
