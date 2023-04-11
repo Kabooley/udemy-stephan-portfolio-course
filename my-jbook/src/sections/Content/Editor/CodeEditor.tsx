@@ -38,6 +38,13 @@ const CodeEditor = (
 	 * */ 
 	const beforeMount: editor.BeforeMount = (m) => {
 		console.log("[monaco] before mount");
+
+		
+        m.languages.typescript.typescriptDefaults.setCompilerOptions({
+			jsx: m.languages.typescript.JsxEmit.Preserve,
+			target: m.languages.typescript.ScriptTarget.ES2020,
+			esModuleInterop: true
+		});
 	};
 
     /***

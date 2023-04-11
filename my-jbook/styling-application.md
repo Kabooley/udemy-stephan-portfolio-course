@@ -498,37 +498,13 @@ https://help.hackerearth.com/hc/en-us/articles/900000796563-the-monaco-editor
 
 #### JSX Highlighting
 
-しかしJSXはハイライトしてくれない。すべて同じ白色である(vs-darkテーマなら)。
+結論：
 
-とにかくjsx-highlighterを導入してみる
+- `monaco-jsx-highlighter`は型情報がないため使えない
 
-講義だと導入はアプリケーションのクラッシュの原因になるからreactバージョンをダウングレードしていた。
 
-今回は現行バージョンで導入できるのか試してみる
+ドフォルトでmonaco-editorはJSXをハイライトしてくれない。すべて同じ白色である(vs-darkテーマなら)。
 
-https://luminaxster.github.io/syntax-highlighter/
-
-https://github.com/luminaxster/syntax-highlighter
-
-JSX-highlighterのインスタンスはいつどこで生成すればいいのだ？
-
-`@monaco-editor/react`を使用するにあたっての既知のエラー：
-
-https://github.com/luminaxster/syntax-highlighter#troubleshooting
-
-```bash
-ReferenceError: document is not defined
-```
-
-> @monaco-editor/react の場合、Monaco のセットアップが完了する前にハイライターをインスタンス化している可能性があります。
-
-> 詳細についてはライブデモをご覧ください。
-
-TODO: よくわからんがライブデモをいじって理解するほかないか
-
-live demoによれば、monaco-editorのeditorインスタンスの、OnMount時にjsx-highlighterをロードすればいい模様
-
-このとき動的ローディングを行っている
 
 #### まとめREADME
 
@@ -550,22 +526,79 @@ NOTE: `@monaco-editor.react`を使っている場合は`monaco`のセットア�
 
 NOTE: 方法はわかったけれど、結局型情報がないためTypeScript環境では使うことができない。断念。
 
-#### 他のJSXハイライト方法
+#### JSX Highlighting 他の方法
 
 https://github.com/microsoft/monaco-editor/issues/264
 
 https://github.com/cancerberoSgx/jsx-alone/blob/master/jsx-explorer/HOWTO_JSX_MONACO.md
 
-たぶんこのリポジトリのものを実現できればJSXハイライティングが実現できる。
+https://blog.expo.dev/building-a-code-editor-with-monaco-f84b3a06deaf
 
-難しいけどな！
+で詳解されている方法をとる。
 
-とにかくこの`HOWTO_JSX_MONACO.md`を解読すればできそうである。
+ただしこの投稿はmonaco-editorに対してのカスタム方法であって、
 
-#### web workerについて学習の必要性あり
+@monaco-editor/reactではない。
 
-まぁおそかれはやかれ。
+@monaco-editor/reactで実現する方法を模索する
 
+webworkerを登録しなくてはならない
+
+#### Create your own editor
+
+https://github.com/suren-atoyan/monaco-react#create-your-own-editor
+
+`@monaco-editor/loader`でmonacoを初期化できる。
+
+- 初期化処理にjsxハイライティングさせる処理を登録できる？
+- 初期化するとしてどこでさせればいいのだ？
+
+src/sections/Content/index.tsxのcomponentwillmount時にさせればいいのかも？
+
+基本: `monaco.editor.create(どこに、なにを)`だけでもうエディタが出力される
+
+```TypeScript
+import loader from "@monaco-editor/loader";
+
+// loader.init() passes monaco instance
+loader.init().then((monaco) => {
+  const wrapper = document.getElementById("root");
+  wrapper.style.height = "100vh";
+  const properties = {
+    value: "function hello() {\n\talert('Hello world!');\n}",
+    language: "javascript"
+  };
+
+  // ここでたとえば
+  // 
+  // なにかエディタのモデルを作成して
+  const _model = monaco.editor.createModel(value, language, path);
+  const _editor = monaco.editor.create(wrapper, properties);
+  monaco.editor.setModel(_model)
+
+});
+```
+
+これをReactコンポーネントにラッピングしてもいいし
+
+utilityにしてもいいだろう
+
+```JavaScript
+
+```
+
+
+
+余談：
+
+- `monaco.languages.typescript.javascriptDefaults.setCompilerOptions`はonwillmount時に設定できる
+
+
+#### integrate webworker with react
+
+monaco-editorではwebworkerを使うことが前提である。
+
+これをreactに統合させる方法の基本を知る。
 
 
 

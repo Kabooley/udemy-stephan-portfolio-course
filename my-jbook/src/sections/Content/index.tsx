@@ -45,11 +45,32 @@ const ContentSection = (): JSX.Element => {
         
         editorRef.current = e;
 
-        m.languages.typescript.typescriptDefaults.setCompilerOptions({
-			jsx: m.languages.typescript.JsxEmit.Preserve,
-			target: m.languages.typescript.ScriptTarget.ES2020,
-			esModuleInterop: true
-		});
+        // こっちを使えば公式の提供する方法でフォーマッティングができる模様
+        // 
+        // 
+        m.languages.registerDocumentFormattingEditProvider('javascript', {
+            provideDocumentFormattingEdits(model, options, toke) {
+                const text = prettier.format(model.getValue(), {
+                    parser: 'babel',
+                    plugins: [parser],
+                    useTabs: false,
+                    semi: true,
+                    singleQuote: true,    
+                })
+                .replace(/\n$/, '');
+                
+                return [{
+                    range: model.getFullModelRange,
+                    text
+                }]
+            }
+        });
+
+        // m.languages.typescript.typescriptDefaults.setCompilerOptions({
+		// 	jsx: m.languages.typescript.JsxEmit.Preserve,
+		// 	target: m.languages.typescript.ScriptTarget.ES2020,
+		// 	esModuleInterop: true
+		// });
 		// m.languages.typescript.typescriptDefaults.setCompilerOptions({
 		// 	target: m.languages.typescript.ScriptTarget.ES2016,
 		// 	allowNonTsExtensions: true,
