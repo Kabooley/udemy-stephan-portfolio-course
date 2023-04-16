@@ -1,12 +1,11 @@
 const path = require('path');
-const HtmlWebPackahePlugin = require('html-webpack-plugin');
+const HtmlWebPackPlugin = require('html-webpack-plugin');
 
 module.exports = {
 	mode: 'development',
 	entry: {
         // NOTE: いまんとこひとまず
 		index: './src/index.tsx',
-		worker: './src/worker/index.ts'
 	},
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js'],
@@ -39,8 +38,8 @@ module.exports = {
 	 * 
 	 * */ 
 	plugins: [
-		new HtmlWebPackahePlugin({
-			title: 'Output Management'
+		new HtmlWebPackPlugin({
+			template: "./src/index.html"
 		})
 	],
 	devtool: 'inline-source-map',
