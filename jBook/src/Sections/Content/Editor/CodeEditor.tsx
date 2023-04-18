@@ -1,13 +1,19 @@
+import React, { useMemo, useEffect } from 'react';
 import type * as monaco from '@monaco-editor/react';
 import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
 import MonacoEditor from '@monaco-editor/react';
-import React from 'react';
 
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
 	onMount: monaco.OnMount;
 };
+
+interface iMessage {
+	signal: string;
+	error: string;
+  }
+  
 
 const defaultValue = "const a = 'AWESOME'";
 
@@ -29,6 +35,61 @@ const CodeEditor = (
 	{ onChangeHandler, onMount } : iMonacoProps
 ) => {
 	// const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
+	const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
+	const SyntaxHighlightWorker = useMemo(() => new Worker(new URL('../../../worker/jsx-highlight.worker.ts', import.meta.url)), []);
+
+	// Initialize and clean up workers.
+	// 
+	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
+	useEffect(() => {
+		// DEBUG:
+		console.log("[CodeEditor] Component did mount.");
+
+		if(window.Worker) {
+
+			ESLintWorker.postMessage({
+				signal: "First message to ESLintWorker",
+				error: ""
+			});
+			SyntaxHighlightWorker.postMessage({
+				signal: "First message to ESLintWorker",
+				error: ""
+			});
+
+			//
+			return () => {
+				// DEBUG:
+				console.log("[CodeEditor] unmount.");
+				// clean up code
+				ESLintWorker.terminate();
+				SyntaxHighlightWorker.terminate();
+			}
+		}
+	}, []);
+
+	// worker message receiver
+	// 
+	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
+	useEffect(() => {
+		if(window.Worker) {
+			
+			ESLintWorker.onmessage = (e: MessageEvent<iMessage>) => {
+				const { signal, error } = e.data;
+				if(error.length) {
+					console.error(error);
+				}
+				console.log(signal);
+			};
+			SyntaxHighlightWorker.onmessage = (e: MessageEvent<iMessage>) => {
+				const { signal, error } = e.data;
+				if(error.length) {
+					console.error(error);
+				}
+				console.log(signal);
+			};
+
+		}
+	}, [ESLintWorker, SyntaxHighlightWorker]);
 
 	/***
 	 * An event is emitted before the editor is mounted. 
@@ -44,6 +105,17 @@ const CodeEditor = (
 			jsx: m.languages.typescript.JsxEmit.Preserve,
 			target: m.languages.typescript.ScriptTarget.ES2020,
 			esModuleInterop: true
+		});
+
+		/**
+		 * To set ESLint,
+		 * Disable typescript's diagnostics for JavaScript files.
+		 * This suppresses errors when using Flow syntax.
+		 * It's also unnecessary since we use ESLint for error checking.
+		 */
+		m.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+			noSemanticValidation: true,
+			noSyntaxValidation: true,
 		});
 	};
 
