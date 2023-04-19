@@ -39,10 +39,6 @@ $ yarn add @monaco-editor/react
 # eslint
 ```
 
-
-
-TODO: my-jbookの削除！ストレージがいっぱいいっぱいになってきた！
-
 ## React + Webpackの時の注意
 
 アプリケーションを`create-react-app`で作成しないで、Reactは一つのパッケージとして取り込んだだけである。
@@ -104,4 +100,98 @@ plugins: [
 </body>
 </html>
 ```
+
+## webpack + webworker Tips
+
+webpack5だと自動的にwebworkerのファイルを切り出してくれる。
+
+現在の設定：
+
+特にwebworkerに対する特別な設定を設けていない
+
+```JavaScript
+const path = require('path');
+const HtmlWebPackPlugin = require('html-webpack-plugin');
+
+module.exports = {
+	mode: 'development',
+	entry: {
+		index: './src/index.tsx',
+	},
+	resolve: {
+		extensions: ['.tsx', '.ts', '.js'],
+	  },
+	output: {
+		globalObject: 'self',
+		filename: '[name].bundle.js',
+		path: path.resolve(__dirname, 'dist'),
+		clean: true
+	},
+	module: {
+		rules: [
+			{
+				test: /\.tsx?$/,
+				use: 'ts-loader',
+				exclude: /node_modules/,
+			},
+			{
+				test: /\.css$/,
+				use: ['style-loader', 'css-loader']
+			},
+			{
+				test: /\.ttf$/,
+				use: ['file-loader']
+			}
+		]
+	},
+	plugins: [
+		new HtmlWebPackPlugin({
+			template: "./src/index.html"
+		})
+	],
+	devtool: 'inline-source-map',
+	devServer: {
+		static: './dist',
+	},
+	optimization: {
+		runtimeChunk: 'single'
+	}
+};
+```
+
+src/:
+
+```bash
+# Each dir owns some files
+src/
+    |- bundler/
+    |- components/
+    |- constants/
+    |- Layout/
+    |- Sections/
+    |- storage/
+    |- worker/
+            |- eslint.worker.ts
+            |- jsx-highlight.worker.ts
+    |- index.tsx
+    |- index.html
+```
+出力結果：
+
+```bash
+dist/ 
+    |- index.bundle.js
+    |- index.html
+    |- runtime.bundle.js
+    |- src_worker_eslint_worker_ts.bundle.js
+    |- src_worker_jsx_highlight_worker_ts.bundle.js
+```
+
+各ファイルはすべてindex.bundle.jsへバンドルされているけれど、
+
+`xxx.worker.ts`はすべて別のファイルとして切り出されている。
+
+なので自動的にworkerであることを認識して切り分けてくれているのだと思う。
+
+
 ## 参考

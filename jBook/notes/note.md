@@ -1,15 +1,24 @@
 # 開発ノート
 
-## 実装する機能@monaco-editor
+## 実装する機能
+
+エディタとしての機能：
 
 - JSX Highlighting
 - ESlint
 - Prettier Formatting
 - 他参考サイトで実装している機能など
 
-## いつも必ず取り掛かる前に見るメモ
+マルチスレッドとして：
 
-みれればいいでんですがね。
+- bundling機能はworkerに切り分けるべきなのか
+
+アプリケーションの基本機能として：
+
+- codesandboxみたいにHTML, CSS, JavaScriptからなるプロジェクトを実行できるアプリケーションにする
+
+
+## 走り書き
 
 4/18:
 
@@ -41,6 +50,8 @@ https://github.com/codesandbox/codesandbox-client/blob/196301c919dd032dccc08cbeb
 はどこがいいのでしょうか。
 
 いつもの参考サイトを参考にする。
+
+[@monaco-editor/react挙動確認](#@monaco-editor/react挙動確認)
 
 
 
@@ -98,7 +109,7 @@ declare namespace ts {
 
 
 
-## typescript.min.js
+#### typescript.min.js
 
 `self.ts`の正体は多分cloudflareでインポートしたtypescriptのscriptファイルなんだけど
 
@@ -147,6 +158,17 @@ https://stackoverflow.com/questions/41336301/typescript-cannot-find-name-window-
 
 tsconfigで`"lib: ["dom"]`を設定する
 
+
+## @monaco-editor/react挙動確認
+
+.d.tsみても下記がMonacoEditorコンポーネントのメソッド
+
+- `onChange`: 現在のmodelの内容が変更されたときにイベントは発行される
+- `onMount`: editorがマウントされたらイベントが発行される
+- `beforeMount`: editorがマウントされる前にイベントが発行される
+- `onValidate`: 現在のmodelの内容が変更されたとき、または現在のmarkerが準備完了したらイベントが発行される
+
+`model`、`marker`とは？
 
 
 ## 参考
