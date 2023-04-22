@@ -31,6 +31,13 @@ self.onmessage = (e: MessageEvent<iMessage>) => {
       error: ""
     });
   }, 10000);
+
+  setTimeout(() => {
+    self.postMessage({
+      signal: "This is jsx-highlighter webworker. Second Delayed message has been sent.",
+      error: ""
+    });
+  }, 30000);
 }
 
 

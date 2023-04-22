@@ -161,6 +161,8 @@ tsconfigで`"lib: ["dom"]`を設定する
 
 ## @monaco-editor/react挙動確認
 
+monaco-editor本家も確認のこと
+
 .d.tsみても下記がMonacoEditorコンポーネントのメソッド
 
 - `onChange`: 現在のmodelの内容が変更されたときにイベントは発行される
@@ -168,7 +170,48 @@ tsconfigで`"lib: ["dom"]`を設定する
 - `beforeMount`: editorがマウントされる前にイベントが発行される
 - `onValidate`: 現在のmodelの内容が変更されたとき、または現在のmarkerが準備完了したらイベントが発行される
 
-`model`、`marker`とは？
+monaco-editor:
+
+TypeScript + Reactのサンプルあるじゃん...
+
+```JavaScript
+import React, { useEffect, useRef } from 'react';
+import monaco from 'monaco-editor';
+
+export const Editor: React.FC = () => {
+  const divEl = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if(divEl.current) {
+      // createModel() create()でmonaco-editorが表示される
+      editor.monaco.create(
+        // Editorを挿入するDOMを指定する
+        divEl.current, 
+        // Editorの初期プロパティなどを指定する
+        {
+          value: ['function x() {', '\tconsole.log("Hello world!");', '}'].join('\n'),
+          language: 'typescript'
+      });
+    }
+      return () => {
+        editor.dispose();
+      }
+  }, []);
+
+  return (
+    <div className="Editor" ref={divEl}></div>
+  );
+}
+```
+
+JSX-Highlighting:
+
+本家のplaygroundで`Syntax Highlighting for Html Elements`を選択
+
+`monaco.editor.colorizeElement()`
+
+```HTML
+
+```
 
 
 ## 参考
@@ -176,3 +219,47 @@ tsconfigで`"lib: ["dom"]`を設定する
 monaco-editorを使うにあたってのあれこれを投稿してくれた人のリポジトリ：
 
 https://github.com/satya164/monaco-editor-boilerplate
+
+
+## 走り書き
+
+#### monaco-editor/reactをいじって何ができるのか確認
+
+- monaco`OnChange`: Editorコンポーネントの中身を編集すると反応する
+
+一文字ごとの変更に反応
+
+- markerとは何？
+
+monaco-editor: 
+
+https://microsoft.github.io/monaco-editor/docs.html#functions/editor.setModelMarkers.html
+
+IMarkerが元の型らしい
+
+IMakerData:
+
+> A structure defining a problem/warning/etc.
+
+boilerplate repoではcomponentdidmountで一度だけ呼び出していた。
+
+```JavaScript
+// getModelで現在のモデルを取得して、setModelMarkers()でセットしたいマーカーをセットする
+   _updateMarkers = ({ markers, version }: any) => {
+    requestAnimationFrame(() => {
+      const model = this._editor.getModel();
+
+      if (model && model.getVersionId() === version) {
+        monaco.editor.setModelMarkers(model, 'eslint', markers);
+      }
+    });
+   }
+```
+
+早速実装してみよう
+
+useEffect()でworkerから返事があったらmarkerをsetModelMarker()する
+
+そのためupdaterはmonacoのインスタンスにアクセスできないといけない
+
+なんだか@monaco-editor/reactよりもmonaco-editor本家をboilerplate repoの通りreact class化した方が使いやすいような気がしてきた。

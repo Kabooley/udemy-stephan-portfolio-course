@@ -28,36 +28,6 @@ const ContentSection = (): JSX.Element => {
     };
 
     /**
-     * Implementation of @monaco-editor/react MonacoEditor component handler.
-	 * Event emitted when editor is mounted.
-	 * */ 
-	const onDidMount: monaco.OnMount = (e, m) => {
-        // DEBUG:
-		console.log("[monaco] on did mount");
-        
-        editorRef.current = e;
-
-        // NOTE: formatting via official method
-        // m.languages.registerDocumentFormattingEditProvider('javascript', {
-        //     provideDocumentFormattingEdits(model, options, toke) {
-        //         const text = prettier.format(model.getValue(), {
-        //             parser: 'babel',
-        //             plugins: [parser],
-        //             useTabs: false,
-        //             semi: true,
-        //             singleQuote: true,    
-        //         })
-        //         .replace(/\n$/, '');
-                
-        //         return [{
-        //             range: model.getFullModelRange,
-        //             text
-        //         }]
-        //     }
-        // });
-	};
-
-    /**
      * editor.OnDidMountを利用する
      * 
      * - コードのフォーマットを行う
@@ -106,8 +76,7 @@ const ContentSection = (): JSX.Element => {
             {
                 isEditor === "editor"
                 ? <CodeEditor 
-                    onChangeHandler={onChangeHandler} 
-                    onMount={onDidMount}
+                    onChangeHandler={onChangeHandler}
                   />
                 : <DiffEditor />
             }

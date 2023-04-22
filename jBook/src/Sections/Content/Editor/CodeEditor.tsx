@@ -6,13 +6,14 @@ import MonacoEditor from '@monaco-editor/react';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
-	onMount: monaco.OnMount;
+	// onMount: monaco.OnMount;
 };
 
 interface iMessage {
 	signal: string;
 	error: string;
-  }
+};
+
   
 
 const defaultValue = "const a = 'AWESOME'";
@@ -32,7 +33,7 @@ const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
 
 
 const CodeEditor = (
-	{ onChangeHandler, onMount } : iMonacoProps
+	{ onChangeHandler } : iMonacoProps
 ) => {
 	// const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
 	const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
@@ -56,23 +57,6 @@ const CodeEditor = (
 				error: ""
 			});
 
-			//
-			return () => {
-				// DEBUG:
-				console.log("[CodeEditor] unmount.");
-				// clean up code
-				ESLintWorker.terminate();
-				SyntaxHighlightWorker.terminate();
-			}
-		}
-	}, []);
-
-	// worker message receiver
-	// 
-	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
-	useEffect(() => {
-		if(window.Worker) {
-			
 			ESLintWorker.onmessage = (e: MessageEvent<iMessage>) => {
 				const { signal, error } = e.data;
 				if(error.length) {
@@ -88,10 +72,29 @@ const CodeEditor = (
 				console.log(signal);
 			};
 
+			return () => {
+				// DEBUG:
+				console.log("[CodeEditor] unmount.");
+				// clean up code
+				ESLintWorker.terminate();
+				SyntaxHighlightWorker.terminate();
+			}
+		}
+	}, []);
+
+	// worker message receiver
+	// 
+	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
+	useEffect(() => {
+		console.log("[CodeEditor] useEffect():");
+		if(window.Worker) {
+			// NOTE: メッセージを送信するタイミングとしてなら使えるかも。
 		}
 	}, [ESLintWorker, SyntaxHighlightWorker]);
 
 	/***
+	 * Component Will Mount
+	 * 
 	 * An event is emitted before the editor is mounted. 
 	 * It gets the monaco instance as a first argument
 	 * 
@@ -119,6 +122,31 @@ const CodeEditor = (
 		});
 	};
 
+	/**
+	 * @param
+	 * 
+	 * monaco.OnMount()の引数とIMarkerData[]を引き取ってマーカ設定を上書きする
+	 * */ 
+	// const _updateMarker = (
+	// 	e: monacoAPI.editor.IStandaloneCodeEditor, 
+	// 	m: typeof monacoAPI, 
+	// 	markers: monacoAPI.editor.IMarkerData[], 
+	// 	version: number
+	// 	) => {
+	// 	// // markerをセットする
+	// 	// const model = e.getModel();
+	// 	// // 本来ここでモデルのバージョンチェックを行うべきらしい
+	// 	// // 今はモデル一つしか扱わないからいいね
+	// 	// m.editor.setModelMarkers(model, 'eslint', /* NOTE: ここでESLintWorerからのデータをセットする */)
+	// };
+
+	/***
+	 * 
+	 * */
+	const onMount: monaco.OnMount = (e, m) => {
+		console.log("[monaco] on did mount.");
+	};
+
     /***
      * @param {string | undefined} v - 
      * @param {monaco.editor.IModelContentChangedEvent} e - 
@@ -126,6 +154,7 @@ const CodeEditor = (
      * NOTE: Reduxを導入するのは後なのでひとまずバケツリレーで動くものを作る
      * */ 
     const onChange: monaco.OnChange = (v, e) => {
+		console.log("[monaco] on change");
         onChangeHandler(v === undefined ? "" : v);
     };
 
@@ -135,6 +164,7 @@ const CodeEditor = (
 	 * */ 
 	const onValidate: monaco.OnValidate = (markers) => {
 		console.log("[monaco] on validate");
+		console.log(markers);
 	};
 	
 	/**

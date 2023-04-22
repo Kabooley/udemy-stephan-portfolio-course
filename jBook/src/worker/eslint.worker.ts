@@ -31,6 +31,13 @@ self.onmessage = (e: MessageEvent<iMessage>) => {
       error: ""
     });
   }, 15000);
+
+  setTimeout(() => {
+    self.postMessage({
+      signal: "This is ESLint.worker. Second Delayed message has been sent.",
+      error: ""
+    });
+  }, 25000);
 }
 
 // import ESLint from '../vendor/eslint.bundle';
