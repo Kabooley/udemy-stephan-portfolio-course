@@ -1,7 +1,9 @@
-import React, { useMemo, useEffect } from 'react';
-import type * as monaco from '@monaco-editor/react';
+import React, { useMemo, useEffect, useRef } from 'react';
+import type * as monacoReact from '@monaco-editor/react';
 import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
 import MonacoEditor from '@monaco-editor/react';
+import prettier from 'prettier';
+import parser from 'prettier/parser-babel';
 
 
 interface iMonacoProps {
@@ -13,8 +15,6 @@ interface iMessage {
 	signal: string;
 	error: string;
 };
-
-  
 
 const defaultValue = "const a = 'AWESOME'";
 
@@ -32,16 +32,53 @@ const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
 };
 
 
+/**
+ * Set formatting rules.
+ * 
+ * */ 
+const setFormatter = (m: typeof monacoAPI): void => {
+
+    // DEBUG:
+    console.log("[App] setFormatter");
+
+    m.languages.registerDocumentFormattingEditProvider(
+		"javascript",　
+		{
+			async provideDocumentFormattingEdits(
+                model, options, token) {
+				const formatted = await prettier.format(
+					model.getValue(), 
+					{
+						parser: 'babel',
+						plugins: [parser],
+						useTabs: false,
+						semi: true,
+						singleQuote: true,
+                        tabWidth: 2
+					})
+					.replace(/\n$/, '');
+
+				return [{
+					range: model.getFullModelRange(),
+					text: formatted,
+				}];
+			}
+		});
+};
+
+
+
+/***
+ * 
+ * */ 
 const CodeEditor = (
 	{ onChangeHandler } : iMonacoProps
 ) => {
-	// const refEditor = useRef<monaco.editor.IStandaloneCodeEditor>();
+	const _editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
+	const _monacoRef = useRef<typeof monacoAPI>();
 	const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
 	const SyntaxHighlightWorker = useMemo(() => new Worker(new URL('../../../worker/jsx-highlight.worker.ts', import.meta.url)), []);
 
-	// Initialize and clean up workers.
-	// 
-	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
 	useEffect(() => {
 		// DEBUG:
 		console.log("[CodeEditor] Component did mount.");
@@ -57,103 +94,39 @@ const CodeEditor = (
 				error: ""
 			});
 
-			ESLintWorker.onmessage = (e: MessageEvent<iMessage>) => {
-				const { signal, error } = e.data;
-				if(error.length) {
-					console.error(error);
-				}
-				console.log(signal);
-			};
-			SyntaxHighlightWorker.onmessage = (e: MessageEvent<iMessage>) => {
-				const { signal, error } = e.data;
-				if(error.length) {
-					console.error(error);
-				}
-				console.log(signal);
-			};
-
 			return () => {
-				// DEBUG:
-				console.log("[CodeEditor] unmount.");
-				// clean up code
 				ESLintWorker.terminate();
 				SyntaxHighlightWorker.terminate();
 			}
 		}
 	}, []);
 
-	// worker message receiver
-	// 
-	// NOTE: useEffect()はMonacoEditor.OnBeforeMount, MonacoEditor.OnMountよりも先に実行される
-	useEffect(() => {
-		console.log("[CodeEditor] useEffect():");
-		if(window.Worker) {
-			// NOTE: メッセージを送信するタイミングとしてなら使えるかも。
-		}
-	}, [ESLintWorker, SyntaxHighlightWorker]);
-
 	/***
-	 * Component Will Mount
+	 * Before create MonacoEditor editor instance. 
 	 * 
-	 * An event is emitted before the editor is mounted. 
-	 * It gets the monaco instance as a first argument
+	 * - set prettier formatter
 	 * 
-	 * handleEditorWillMount()
 	 * */ 
-	const beforeMount: monaco.BeforeMount = (m) => {
+	const beforeMount: monacoReact.BeforeMount = (m) => {
 		console.log("[monaco] before mount");
-
-		
-        m.languages.typescript.typescriptDefaults.setCompilerOptions({
-			jsx: m.languages.typescript.JsxEmit.Preserve,
-			target: m.languages.typescript.ScriptTarget.ES2020,
-			esModuleInterop: true
-		});
-
-		/**
-		 * To set ESLint,
-		 * Disable typescript's diagnostics for JavaScript files.
-		 * This suppresses errors when using Flow syntax.
-		 * It's also unnecessary since we use ESLint for error checking.
-		 */
-		m.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-			noSemanticValidation: true,
-			noSyntaxValidation: true,
-		});
+		_monacoRef.current = m;
+		setFormatter(m);
 	};
 
-	/**
-	 * @param
-	 * 
-	 * monaco.OnMount()の引数とIMarkerData[]を引き取ってマーカ設定を上書きする
-	 * */ 
-	// const _updateMarker = (
-	// 	e: monacoAPI.editor.IStandaloneCodeEditor, 
-	// 	m: typeof monacoAPI, 
-	// 	markers: monacoAPI.editor.IMarkerData[], 
-	// 	version: number
-	// 	) => {
-	// 	// // markerをセットする
-	// 	// const model = e.getModel();
-	// 	// // 本来ここでモデルのバージョンチェックを行うべきらしい
-	// 	// // 今はモデル一つしか扱わないからいいね
-	// 	// m.editor.setModelMarkers(model, 'eslint', /* NOTE: ここでESLintWorerからのデータをセットする */)
-	// };
-
 	/***
-	 * 
+	 * Did create MonacoEditor editor instance.
 	 * */
-	const onMount: monaco.OnMount = (e, m) => {
+	const onMount: monacoReact.OnMount = (e, m) => {
 		console.log("[monaco] on did mount.");
+		if(_editorRef.current === undefined) {
+			_editorRef.current = e;
+		}
 	};
 
     /***
-     * @param {string | undefined} v - 
-     * @param {monaco.editor.IModelContentChangedEvent} e - 
-     * 
-     * NOTE: Reduxを導入するのは後なのでひとまずバケツリレーで動くものを作る
+	 * On change occured on the monaco editor model.
      * */ 
-    const onChange: monaco.OnChange = (v, e) => {
+    const onChange: monacoReact.OnChange = (v, e) => {
 		console.log("[monaco] on change");
         onChangeHandler(v === undefined ? "" : v);
     };
@@ -162,18 +135,10 @@ const CodeEditor = (
 	 * Event emitted when the content of the current model is changed
 	 * and current markers are ready.
 	 * */ 
-	const onValidate: monaco.OnValidate = (markers) => {
+	const onValidate: monacoReact.OnValidate = (markers) => {
 		console.log("[monaco] on validate");
 		console.log(markers);
 	};
-	
-	/**
-	 * Event emitted when editor is mounted.
-	 * 
-	 * syntax highlight
-	 * */ 
-	// const onDidMount: editor.OnMount = (e, m) => {
-	// };
 
 	return (
 		<MonacoEditor

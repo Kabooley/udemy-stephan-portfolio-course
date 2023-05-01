@@ -4,8 +4,8 @@ const HtmlWebPackPlugin = require('html-webpack-plugin');
 module.exports = {
 	mode: 'development',
 	entry: {
-        // NOTE: いまんとこひとまず
 		index: './src/index.tsx',
+		bundleWorker: './src/worker/bundle.worker.ts'
 	},
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js'],
