@@ -9,6 +9,8 @@ import { previewTemplate } from '../../constants/templates/preview';
 import CodeEditor from './Editor/CodeEditor';
 import DiffEditor from './Editor/DiffEditor';
 import './index.css';
+import type { iMessageBundleWorker } from '../../worker/bundle.worker';
+
 // import { bundler } from '../../bundler';
 // import type * as monaco from '@monaco-editor/react'
 
@@ -23,15 +25,27 @@ const ContentSection = (): JSX.Element => {
     const editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
     const previewRef = useRef<HTMLIFrameElement>(null);
     const bundleWorker = useMemo(() => new Worker(
-        new URL('/src/workers/bundle.worker.ts', import.meta.url)
+        new URL('/src/workers/bundle.worker.ts', import.meta.url),
+        { type: "module" }
     ),[]);
 
     useEffect(() => {
         console.log("[Sections/Content/index.ts] component did mount");
         if(window.Worker) {
-            // send message to worker if needed.
-            bundleWorker.addEventListener('message', ({ data }) => {
-                // TODO: apply bundled code to editor model.
+            
+            bundleWorker.addEventListener('message', (
+                { data }: MessageEvent<iMessageBundleWorker>
+            ) => {
+                // DEBUG: 
+                console.log("[ContentSection/index.tsx] bundleWorker onmessage");
+
+                const { bundledCode, err } = data;
+                if(err) throw err;
+                if(previewRef.current && previewRef.current.contentWindow) {
+                    previewRef.current.contentWindow.postMessage({
+                        code: bundledCode
+                    }, '*');
+                }
             }, false);
         }
 
@@ -76,18 +90,26 @@ const ContentSection = (): JSX.Element => {
     }
 
     const onSubmitHandler = async (): Promise<void> => {
-        if(previewRef.current && previewRef.current.contentWindow) {
 
-            // NOTE: To prevent srcdoc to be empty by user.
-            previewRef.current.srcdoc = previewTemplate;
+        // DEBUG: temporary comment out below code to replace worker
+        // 
+        // if(previewRef.current && previewRef.current.contentWindow) {
 
-            const result = await bundler(code);
+        //     // NOTE: To prevent srcdoc to be empty by user.
+        //     previewRef.current.srcdoc = previewTemplate;
 
-            // NOTE: DON'T FORGET 'contentWindow', and pass '*'
-            previewRef.current.contentWindow.postMessage({
-                code: result.code
-            }, '*');
-        }
+        //     const result = await bundler(code);
+
+        //     // NOTE: DON'T FORGET 'contentWindow', and pass '*'
+        //     previewRef.current.contentWindow.postMessage({
+        //         code: result.code
+        //     }, '*');
+        // }
+
+        bundleWorker.postMessage({
+            code: code,
+            err: ""
+        });
     };
 
     return (

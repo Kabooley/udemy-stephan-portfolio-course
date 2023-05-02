@@ -98,6 +98,50 @@ bundling logic振り返り：
 - codeをonSubmitするコンポーネントでworkerを生成する。
 - worker生成時、`type: moduele`を指定する(ES6 import文が必要なので)。
 
+#### workerとやりとりするdataの型
+
+messageイベントのイベントの型：
+
+https://microsoft.github.io/PowerBI-JavaScript/interfaces/_node_modules_typedoc_node_modules_typescript_lib_lib_dom_d_.messageevent.html
+
+`MessageEvent`
+
+Genericsを使って`MessageEvent.data`の型を指定する
+
+```TypeScript
+// bundleWorker.ts
+export interface iMessageBundleWorker {
+    code: string;       // 呼び出し側から受け取るコード
+    bundledCode: string;// bundlingしたコード
+    err: Error | null;         // worker内で発生したエラー
+};
+
+
+// index.tsx
+bundleWorker.addEventListener('message', (
+	{ data }: MessageEvent<iMessageBundleWorker>
+) => {
+	const { bundledCode, err } = data;
+	if(err) throw err;
+	if(previewRef.current && previewRef.current.contentWindow) {
+		previewRef.current.contentWindow.postMessage({
+			code: bundledCode
+		}, '*');
+	}
+}, false);
+```
+
+#### worker as module
+
+モジュールとしてworkerを扱うとき、classic workerとどう異なるのか
+
+https://html.spec.whatwg.org/multipage/workers.html#module-worker-example
+
+workerはindex.htmlに<script type="script">タグで埋め込まれることと同じである。
+
+だからworkerのスコープはグローバルなのである。
+
+
 
 #### ESLint
 
@@ -106,3 +150,27 @@ bundling logic振り返り：
 #### JSX Highlight
 
 検証中
+
+## [JavaScript] webworkerについて
+
+https://html.spec.whatwg.org/multipage/workers.html
+
+https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script
+
+- workerは非常に重いのでたくさん生成するものではない
+- (専用)workerは`classic script`か`module script`で実行される。
+- `classic script`は`<script type="">`もしくは`type`属性なしで指定した場合のscriptのことである。
+- `module script`は`<script type="module">`で指定した場合のscriptのことである。
+
+class scriptのトップレベルに定義されたものはグローバルにアクセスできるため、他のscript type=""で埋め込まれたスコープからアクセスできる
+
+module scriptはそれとことなりmoduleからexportしたもののみ他のスコープに公開される。
+
+workerはよく`self`にプロパティを追加する形で関数などを定義するが
+（つまり、宣言なしで`self`オブジェクトに追加しているだけ、といういみ）
+
+module workerは`self`にくっつけなくていいのか？
+
+TODO: 調査の続きを。
+
+https://stackoverflow.com/questions/48045569/whats-the-difference-between-a-classic-and-module-web-worker
