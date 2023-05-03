@@ -1,16 +1,20 @@
-/***
- * TODO: 今bundler/index.tsから張り付けただけ。workerで動作できるように修正
- * TODO: module type workerの標準を知る
- * 
- * */ 
 import * as esbuild from 'esbuild-wasm';
 import { unpkgPathPlugin } from '../bundler/plugins/unpkgPathPlugin';
 import { fetchPlugins } from '../bundler/plugins/fetch';
 
+type iOrderToWorker = "bundle" | "jsxhighlight" | "eslint";
+
+/***
+ * @property {string} code - Code sent from main thread and about to be bundled.
+ * @property {string} bundledCode - Bundled code to be send to main tread.
+ * @property {Error | null} err - Error occured amoung bundling process.
+ * @property {}
+ * */ 
 export interface iMessageBundleWorker {
-    code: string;       // 呼び出し側から受け取るコード
-    bundledCode: string;// bundlingしたコード
-    err: Error | null;         // worker内で発生したエラー
+    code?: string;
+    bundledCode?: string;
+    err?: Error | null;
+    order: iOrderToWorker;
 };
 
 interface iBuildResult {
@@ -27,10 +31,20 @@ const initializeOptions: esbuild.InitializeOptions = {
 let isInitialized: boolean = false;
 
 /**
+ * Validate origin is valid or not.
+ * */ 
+const validateOrigin = (origin: string): boolean => {
+    const expression = /^http:\/\/localhost\:8080\/?/;
+    const regex = new RegExp(expression);
+
+    return origin.match(regex) ? true : false;
+};
+
+/**
  * @param { string } rawCode - The code that user typed and submitted.
  * 
  * */ 
-export const bundler = async (rawCode: string): Promise<iBuildResult> => {
+const bundler = async (rawCode: string): Promise<iBuildResult> => {
     try {
         console.log(isInitialized);
         
@@ -74,3 +88,49 @@ export const bundler = async (rawCode: string): Promise<iBuildResult> => {
           else throw e;
     }
 };
+
+self.onmessage = (e:MessageEvent<iMessageBundleWorker>): void => {
+
+        
+    // DEBUG: 
+    console.log("[bundle.worker.ts] got message");
+    console.log(e);
+    console.log(self.location.origin);
+
+    // Validate origin
+    if(!validateOrigin(e.origin)) return;
+    // Filter necessary message
+    if(e.data.order !== "bundle") return;
+
+
+    
+    // DEBUG: 
+    console.log("[bundle.worker.ts] start bundle process...");
+
+    const { code } = e.data;
+
+    if(code) {
+        bundler(code)
+        .then((result: iBuildResult) => {
+            if(result.err.length) throw new Error(result.err);
+
+            // DEBUG:
+            console.log("[budle.worker.ts] sending bundled code");
+
+            self.postMessage({
+                bundledCode: result.code,
+                err: null
+            });
+        })
+        .catch((e) => {
+            
+            // DEBUG:
+            console.log("[budle.worker.ts] sending Error");
+            
+            self.postMessage({
+                bundledCode: "",
+                err: e
+            });
+        });
+    }
+}

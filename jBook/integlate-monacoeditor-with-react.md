@@ -80,9 +80,9 @@ const setFormatter = (m: typeof monacoAPI): void => {
 
 ```
 
-#### bundling処理をworkerへ移す
+#### bundling in worker
 
-ってのはどうだい？
+bundlingプロセスをworkerへ移す。
 
 bundling logicをworkerへ移すにあたって...
 
@@ -109,11 +109,14 @@ https://microsoft.github.io/PowerBI-JavaScript/interfaces/_node_modules_typedoc_
 Genericsを使って`MessageEvent.data`の型を指定する
 
 ```TypeScript
+type iOrderToWorker = "bundle" | "jsxhighlight" | "eslint";
+
 // bundleWorker.ts
 export interface iMessageBundleWorker {
     code: string;       // 呼び出し側から受け取るコード
     bundledCode: string;// bundlingしたコード
     err: Error | null;         // worker内で発生したエラー
+	order: iOrderToWorker;		// what order 
 };
 
 
@@ -131,17 +134,134 @@ bundleWorker.addEventListener('message', (
 }, false);
 ```
 
-#### worker as module
+#### 検証
 
-モジュールとしてworkerを扱うとき、classic workerとどう異なるのか
+- 関係ないmessageeventにも反応してしまう
+- bundling processは出来ているけどメインスレッドへ戻せていない模様
 
-https://html.spec.whatwg.org/multipage/workers.html#module-worker-example
+#### worker.postMessage()受信メッセージの検査
 
-workerはindex.htmlに<script type="script">タグで埋め込まれることと同じである。
+- check origin is valid
+- check the message is worker must treat
 
-だからworkerのスコープはグローバルなのである。
+`worker.postMessage()`で送信されたメッセージは、すべての`self.onmessage()`で受信する模様。
+
+そのためそのworkerで必要なメッセージなのかどうか検査する必要がある。
 
 
+```TypeScript
+// index.tsx
+
+const ContentSection = (): JSX.Element => {
+    // set iIsEditor
+    const [isEditor, setIsEditor] = useState<iIsEditor>("editor");
+    const [code, setCode] = useState<string>("");
+    const editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
+    const previewRef = useRef<HTMLIFrameElement>(null);
+    const bundleWorker = useMemo(() => new Worker(
+        new URL('/src/worker/bundle.worker.ts', import.meta.url),
+        { type: "module" }
+    ),[]);
+
+    useEffect(() => {
+        console.log("[Sections/Content/index.ts] component did mount");
+        if(window.Worker) {
+            
+            bundleWorker.addEventListener('message', (
+                { data }: MessageEvent<iMessageBundleWorker>
+            ) => {
+				// handle received message...
+            }, false);
+        }
+
+        return () => {
+            bundleWorker.terminate();
+        }
+    }, []);
+
+    const onSubmitHandler = async (): Promise<void> => {
+
+        bundleWorker.postMessage({
+            code: code,
+            order: "bundle"
+        });
+    };
+
+	//...
+};
+
+// bundle.worker.ts
+import * as esbuild from 'esbuild-wasm';
+import { unpkgPathPlugin } from '../bundler/plugins/unpkgPathPlugin';
+import { fetchPlugins } from '../bundler/plugins/fetch';
+
+type iOrderToWorker = "bundle" | "jsxhighlight" | "eslint";
+
+/***
+ * @property {string} code - Code sent from main thread and about to be bundled.
+ * @property {string} bundledCode - Bundled code to be send to main tread.
+ * @property {Error | null} err - Error occured amoung bundling process.
+ * @property {}
+ * */ 
+export interface iMessageBundleWorker {
+    code?: string;
+    bundledCode?: string;
+    err?: Error | null;
+    order: iOrderToWorker;
+};
+
+interface iBuildResult {
+    code: string;
+    err: string;
+};
+
+// ...
+
+self.onmessage = (e:MessageEvent<iMessageBundleWorker>): void => {
+
+    // Validate origin
+    if(!validateOrigin(e.origin)) return;
+    // Filter necessary message
+    if(e.data.order !== "bundle") return;
+
+    const { code } = e.data;
+
+    if(code) {
+        bundler(code)
+        .then((result: iBuildResult) => {
+            if(result.err.length) throw new Error(result.err);
+
+            self.postMessage({
+                bundledCode: result.code,
+                err: null
+            });
+        })
+        .catch((e) => {
+
+            self.postMessage({
+                bundledCode: "",
+                err: e
+            });
+        });
+    }
+}
+```
+
+NOTE: codeをサブミットしてworkerへ送信したらEventMessage.originが空だった。
+
+https://html.spec.whatwg.org/multipage/comms.html#the-messageevent-interface
+
+無視するか、
+
+`global.location.origin`でオリジンを取得して相手に送信して判断してもらう手もあるけれど、
+
+結局それは第三者も同じ手を使うことができてしまうので意味がない。
+
+originが空なのは開発中だからかな？
+
+わからん
+
+ひとまずoriginチェックは凍結する。
 
 #### ESLint
 
@@ -174,3 +294,35 @@ module workerは`self`にくっつけなくていいのか？
 TODO: 調査の続きを。
 
 https://stackoverflow.com/questions/48045569/whats-the-difference-between-a-classic-and-module-web-worker
+
+
+危険性：
+
+https://security.stackexchange.com/questions/20022/how-to-use-postmessage-securely
+
+- originを検査せよ
+- 受信することが期待されるデータの型であるかどうかを検査せよ
+- 大量のメッセージを受信しないように単位時間当たりの受信メッセージ数を制限せよ
+
+
+
+## メモ
+
+テストコード:
+
+```JavaScript
+import { createRoot } from 'react-dom/client';
+import React from 'react';
+import 'bulma/css/bulma.css';
+
+const App = () => {
+    return (
+        <div className="container">
+          <span>REACT</span>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```

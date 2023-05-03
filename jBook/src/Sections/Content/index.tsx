@@ -25,7 +25,7 @@ const ContentSection = (): JSX.Element => {
     const editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
     const previewRef = useRef<HTMLIFrameElement>(null);
     const bundleWorker = useMemo(() => new Worker(
-        new URL('/src/workers/bundle.worker.ts', import.meta.url),
+        new URL('/src/worker/bundle.worker.ts', import.meta.url),
         { type: "module" }
     ),[]);
 
@@ -42,6 +42,9 @@ const ContentSection = (): JSX.Element => {
                 const { bundledCode, err } = data;
                 if(err) throw err;
                 if(previewRef.current && previewRef.current.contentWindow) {
+                    // NOTE: To prevent srcdoc to be empty by user.
+                    previewRef.current.srcdoc = previewTemplate;
+
                     previewRef.current.contentWindow.postMessage({
                         code: bundledCode
                     }, '*');
@@ -91,6 +94,10 @@ const ContentSection = (): JSX.Element => {
 
     const onSubmitHandler = async (): Promise<void> => {
 
+        // DEBUG: 
+        console.log("[Sections/Content/index.ts] on submit");
+        console.log(self.location.origin);
+
         // DEBUG: temporary comment out below code to replace worker
         // 
         // if(previewRef.current && previewRef.current.contentWindow) {
@@ -108,7 +115,7 @@ const ContentSection = (): JSX.Element => {
 
         bundleWorker.postMessage({
             code: code,
-            err: ""
+            order: "bundle"
         });
     };
 
