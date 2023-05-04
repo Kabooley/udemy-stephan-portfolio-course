@@ -141,6 +141,8 @@ bundleWorker.addEventListener('message', (
 
 #### worker.postMessage()受信メッセージの検査
 
+結論：EventMessage.originは空文字列になってしまって検査の仕様がないためorigin検査は見送る。
+
 - check origin is valid
 - check the message is worker must treat
 
@@ -263,13 +265,114 @@ originが空なのは開発中だからかな？
 
 ひとまずoriginチェックは凍結する。
 
-#### ESLint
+#### 実装：ESLint
 
 検証中
 
-#### JSX Highlight
+#### 実装：JSX Highlight
 
-検証中
+- 最新の参考サイトのやり方を参考にJSXハイライトworkerを実装
+
+参考：
+
+https://github.com/codesandbox/codesandbox-client/blob/master/packages/app/src/sandbox/eval/transpilers/typescript/typescript-worker.ts
+
+
+
+上記のcodesandboxのgithubリポジトリよりわかること：
+
+- importScriptsで取得した`ts`は以下の通りにすればtypescriptが理解してくれる
+- 代わりに`self.ts`呼出はしなくなった
+
+https://github.com/codesandbox/codesandbox-client/blob/196301c919dd032dccc08cbeb48cf8722eadd36b/packages/app/src/app/components/CodeEditor/Monaco/workers/syntax-highlighter.js
+
+上記のURLは古いリポジトリのもので、masterブランチのものだとアップデートされていた。
+
+(そうなると現在のsyntsxhighlighterのファイルを探しなおさないといかんけどな)
+
+```TypeScript
+import type * as TypeScriptType from 'typescript';
+
+self.importScripts(
+  'https://cdnjs.cloudflare.com/ajax/libs/typescript/3.4.1/typescript.min.js'
+);
+
+declare const ts: typeof TypeScriptType;
+
+async function compile(data) {
+  const { code, path, config, typescriptVersion } = data;
+
+  if (typescriptVersion !== '3.4.1') {
+    self.importScripts(
+      `https://unpkg.com/typescript@${typescriptVersion}/lib/typescript.js`
+    );
+  }
+
+  const defaultConfig = {
+    fileName: path,
+    reportDiagnostics: true,
+    compilerOptions: {
+        // ts....呼出がエラーにならない
+      target: ts.ScriptTarget.ES5,
+      module: ts.ModuleKind.CommonJS,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
+      allowJs: true,
+      alwaysStrict: true,
+      downlevelIteration: true,
+      noImplicitUseStrict: false,
+      jsx: ts.JsxEmit.React,
+      forceConsistentCasingInFileNames: true,
+      noImplicitReturns: true,
+      noImplicitThis: true,
+      noImplicitAny: true,
+      strictNullChecks: true,
+      suppressImplicitAnyIndexErrors: true,
+      noUnusedLocals: true,
+      inlineSourceMap: true,
+      inlineSources: true,
+      emitDecoratorMetadata: true,
+      experimentalDecorators: true,
+      lib: ['es2017', 'dom'],
+    },
+  };
+// ...
+```
+
+#### 処理の流れ
+
+- onChangeイベントでコードを取得する
+- onChangeハンドラでworkerへコードを送信する
+- workerを参考サイトのリポジトリを参考に実装
+- メインスレッドのonmessageでworkerから返された値を反映させる(何をどう反映させるのか未確認)
+- 反映するときはanimation何とかを使うみたい？
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## [JavaScript] webworkerについて
 
