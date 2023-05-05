@@ -271,6 +271,14 @@ originが空なのは開発中だからかな？
 
 #### 実装：JSX Highlight
 
+NOTE: update 20230505: monaco-editorはデフォでjsxハイライト対応とのこと
+
+https://github.com/microsoft/monaco-editor/issues/264#issuecomment-733981409
+
+ただし適用のさせ方使い方わからん
+
+https://github.com/microsoft/monaco-editor/issues/264#issuecomment-654578687これをplaygroundで試してみる
+
 - 最新の参考サイトのやり方を参考にJSXハイライトworkerを実装
 
 参考：
@@ -353,6 +361,23 @@ async function compile(data) {
 
 
 
+
+--- 5/5
+
+## IRange
+
+constructor:
+
+https://microsoft.github.io/monaco-editor/typedoc/classes/Range.html#constructor
+
+```TypeScript
+new Range(
+    startLineNumber: number, 
+    startColumn: number, 
+    endLineNumber: number, 
+    endColumn: number
+): Range
+```
 
 
 

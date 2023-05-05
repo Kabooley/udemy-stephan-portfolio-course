@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useRef } from 'react';
+import axios from 'axios';
 import type * as monacoReact from '@monaco-editor/react';
 import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
 import MonacoEditor from '@monaco-editor/react';
@@ -66,6 +67,31 @@ const setFormatter = (m: typeof monacoAPI): void => {
 		});
 };
 
+const setCompilerOptions = (m: typeof monacoAPI) => {
+
+	m.languages.typescript.typescriptDefaults.setCompilerOptions({
+		target: m.languages.typescript.ScriptTarget.Latest,
+		allowNonTsExtensions: true,
+		moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
+		module: m.languages.typescript.ModuleKind.CommonJS,
+		noEmit: true,
+		esModuleInterop: true,
+		jsx: m.languages.typescript.JsxEmit.React,
+		reactNamespace: "React",
+		allowJs: true,
+		typeRoots: ["node_modules/@types"],
+	  });
+	
+	m.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+	   noSemanticValidation: false,
+	   noSyntaxValidation: false,
+	});
+	
+	m.languages.typescript.typescriptDefaults.addExtraLib(
+		reactDefFile,
+		`file:///node_modules/@react/types/index.d.ts`
+	);
+};
 
 
 /***

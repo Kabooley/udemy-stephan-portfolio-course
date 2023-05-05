@@ -28,6 +28,9 @@ const ContentSection = (): JSX.Element => {
         new URL('/src/worker/bundle.worker.ts', import.meta.url),
         { type: "module" }
     ),[]);
+    const JsxHighlightWorker = useMemo(() => new Worker(
+        new URL('/src/worker/jsx-highlight.worker.ts', import.meta.url)
+    ),[]);
 
     useEffect(() => {
         console.log("[Sections/Content/index.ts] component did mount");
@@ -50,6 +53,7 @@ const ContentSection = (): JSX.Element => {
                     }, '*');
                 }
             }, false);
+
         }
 
         return () => {
@@ -59,6 +63,7 @@ const ContentSection = (): JSX.Element => {
 
     const onChangeHandler = (value: string): void => {
         setCode(value);
+
     };
 
     /**
