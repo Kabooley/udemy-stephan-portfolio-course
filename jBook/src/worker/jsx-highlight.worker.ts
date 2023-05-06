@@ -1,28 +1,34 @@
-import * as TypeScriptType from "typescript";
-
-interface iClassification {
-    // IRange properties
-    startLineNumber: number;
-    startColumn: number;
-    endLineNumber: number;
-    endColumn: number;
-    // 
-
-};
-
-
-interface iSyntaxHighlightMessageData {
-    code: string;
-    title: string;
-    version: string;
-};
-  
+import type * as TypeScriptType from "typescript";
+import ts from "typescript";  
 
 self.importScripts(
     'https://cdnjs.cloudflare.com/ajax/libs/typescript/5.0.4/typescript.min.js',
 );
 
-declare const ts: typeof TypeScriptType;
+// TODO: 結局tsはmoduleでimportするべきでimportScripts入らないのか確認
+// declare const ts: typeof TypeScriptType;
+
+// Data type to sent main thread.
+export interface iClassification {
+    // IRange properties
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+    // strings to be used as IModelDecorationOptions.inlineclassname
+    kind: string;  //TypeScriptType.SyntaxKind;
+    parentKind: string;  //TypeScriptType.SyntaxKind;
+    // TODO: undefinedのチェック機能
+    type: string | undefined;  //TypeScriptType.Node
+};
+
+// MessageData sent from main thread.
+interface iSyntaxHighlightMessageData {
+    code: string;
+    title: string;
+    version: string;
+};
+
   
 function getLineNumberAndOffset(start: number, lines: number[]) {
     let line = 0;
@@ -35,7 +41,7 @@ function getLineNumberAndOffset(start: number, lines: number[]) {
     return { line: line + 1, offset };
 }
   
-function nodeToRange(node) {
+function nodeToRange(node: ts.Node): number[] {
   if (
     typeof node.getStart === 'function' &&
     typeof node.getEnd === 'function'
@@ -53,16 +59,18 @@ function nodeToRange(node) {
 /**
  * Array.prototype.find()とTypeScriptの統合
  * 
+ * TODO: 最終的に何を返すことになるのか再確認
+ * 
+ * @param {TypeScriptType.Node} parent - TypeScriptType.SourceFileでもある
  * */ 
 function getNodeType(
-    parent: TypeScriptType.SourceFile, 
+    parent: TypeScriptType.Node, 
     node: TypeScriptType.Node
 ) {
-  return Object.keys(parent).find((key) => parent[key as keyof typeof parent] === node);
+  return (Object.keys(parent) as Array<keyof typeof parent>).find((key) => parent[key as keyof typeof parent] === node);
 };
 
 // Previous:
-// 
 // function getNodeType(
 //     parent: TypeScriptType.SourceFile, 
 //     node: TypeScriptType.Node
@@ -70,8 +78,9 @@ function getNodeType(
 //   return Object.keys(parent).find(key => parent[key] === node);
 // }
 
-function getParentRanges(node) {
-  const ranges = [];
+function getParentRanges(node: ts.Node): { start: number, end: number}[] 
+{
+  const ranges: { start: number, end: number}[] = [];
   const [start, end] = nodeToRange(node);
   let lastEnd = start;
 
@@ -93,23 +102,24 @@ function getParentRanges(node) {
   }
 
   return ranges;
-}
+};
 
+/***
+ * @param {TypeScriptType.Node} node - `TypeScriptType.SourceFile`も受け付けることができている理由は不明。
+ * 
+ * */ 
 function addChildNodes(
-    node: TypeScriptType.SourceFile, 
+    // node: TypeScriptType.SourceFile, 
+    node: TypeScriptType.Node, 
     lines: number[], 
     classifications: iClassification[]
 ) {
-  const parentKind = ts.SyntaxKind[node.kind];
 
-  /**
-   * function forEachChild<T>(node: Node, cbNode: (node: Node) => T | undefined, cbNodes?: (nodes: NodeArray<Node>) => T | undefined): T | undefined;
-     * @param node a given node to visit its children
-     * @param cbNode a callback to be invoked for all child nodes
-     * @param cbNodes a callback to be invoked for embedded array
-   * 
+  /***
+   * nodeのchildNodeひとつひとつをコールバック関数の引数として、コールバック関数を呼出す。
+   * @param {TypeScriptType.Node} id - idとかいっているけどchildNode
    * */ 
-  ts.forEachChild(node, id => {
+  ts.forEachChild<void>(node, id => {
     const type = getNodeType(node, id);
 
     classifications.push(
@@ -120,14 +130,17 @@ function addChildNodes(
         );
         const { line: endLineNumber } = getLineNumberAndOffset(end, lines);
 
+
         return {
           startColumn: start + 1 - offset,
-          endColum: end + 1 - offset,
-          kind: ts.SyntaxKind[id.kind],
-          parentKind,
-          type,
+          endColumn: end + 1 - offset,
           startLineNumber,
           endLineNumber,
+          // NOTE: object[x] が stringを返すので厳密には異なる型だけど
+          // 最終的にstringとして扱われるのでヨシ
+          kind: ts.SyntaxKind[id.kind],
+          parentKind: ts.SyntaxKind[node.kind],
+          type,
         };
       })
     );
@@ -138,7 +151,7 @@ function addChildNodes(
 
 
 // Respond to message from parent thread
-self.onmessage = (event: MessageEvent</* TODO: DEFINE */>) => {
+self.onmessage = (event: MessageEvent<iSyntaxHighlightMessageData>) => {
   const { code, title, version }: iSyntaxHighlightMessageData = event.data;
   try {
     const classifications: iClassification[] = [];
@@ -146,7 +159,8 @@ self.onmessage = (event: MessageEvent</* TODO: DEFINE */>) => {
     const sourceFile: TypeScriptType.SourceFile = ts.createSourceFile(
       title,
       code,
-      ts.ScriptTarget.ES6,
+      // TODO: codeのscripttargetと合わせること
+      ts.ScriptTarget.ES2016,
       true
     );
     const lines: number[] = code.split('\n').map(line => line.length);
@@ -157,4 +171,4 @@ self.onmessage = (event: MessageEvent</* TODO: DEFINE */>) => {
   } catch (e) {
     /* Ignore error */
   }
-});
+};

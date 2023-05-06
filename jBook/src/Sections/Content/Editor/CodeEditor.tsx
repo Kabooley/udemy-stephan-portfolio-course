@@ -6,6 +6,7 @@ import MonacoEditor from '@monaco-editor/react';
 import prettier from 'prettier';
 import parser from 'prettier/parser-babel';
 
+import type { iClassification } from '../../../worker/jsx-highlight.worker';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
@@ -102,8 +103,9 @@ const CodeEditor = (
 ) => {
 	const _editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
 	const _monacoRef = useRef<typeof monacoAPI>();
-	const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
-	const SyntaxHighlightWorker = useMemo(() => new Worker(new URL('../../../worker/jsx-highlight.worker.ts', import.meta.url)), []);
+	const jsxHighlightWorker = useMemo(() => new Worker(new URL('../../../worker/jsx-highlight.worker.ts', import.meta.url)), []);
+	// const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
+
 
 	useEffect(() => {
 		// DEBUG:
@@ -111,18 +113,37 @@ const CodeEditor = (
 
 		if(window.Worker) {
 
-			ESLintWorker.postMessage({
-				signal: "First message to ESLintWorker",
-				error: ""
-			});
-			SyntaxHighlightWorker.postMessage({
-				signal: "First message to ESLintWorker",
-				error: ""
-			});
+            jsxHighlightWorker.addEventListener('message', (
+                { data }: MessageEvent<{classifications: iClassification[], version: number}>
+                ) => {
+                    const { classifications, version } = data;
+					const model = _editorRef.current?.getModel();
+					if(model && model.getVersionId() !== version) return;
+
+					const decorations: monacoAPI.IModelDeltaDecoration[] = classifications.map(classification => ({
+						range: new monacoAPI.Range(
+							classification.startLineNumber,
+							classification.startColumn,
+							classification.endLineNumber,
+							classification.endColumn,
+						),
+						options: {
+							// Check type is undefined 
+							inlineClassName: classification.type
+								? `${classification.kind} ${classification.type}-of-${classification.parentKind}`
+								: classification.kind
+						}
+					}));
+
+					// TODO: assign decorations property to model correctly.
+					if(model.decorations === undefined) model.decorations = [];
+					model!.decorations = _editorRef.current?.createDecorationsCollection(decorations);
+            }, false);
+
 
 			return () => {
-				ESLintWorker.terminate();
-				SyntaxHighlightWorker.terminate();
+				jsxHighlightWorker.terminate();
+				// ESLintWorker.terminate();
 			}
 		}
 	}, []);

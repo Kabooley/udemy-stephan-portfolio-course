@@ -357,8 +357,34 @@ async function compile(data) {
 
 
 
+#### メインスレッドへ渡すデータの型
 
+```TypeScript
+interface iClassification {
+    // IRange properties
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+    // 
+    kind: string;       // TypeScriptType.SyntaxKind;
+    parentKind: string; // TypeScriptType.SyntaxKind;
+    type: string;       // TypeScriptType.Node
+};
+```
+最終的に、
 
+`IModelDeltaDecoration`のプロパティである
+
+`IRange`と`IModelDecorationOptions`を渡せればよい。
+
+`createDecorationsCollection`を呼び出すためである。
+
+`kind`, `parentKind`, `type`は実際には上記のコメントの通りの型であるが、
+
+最終的には文字列で連結されるのでstring型でよい。
+
+（いろいろと都合がよい）
 
 
 
