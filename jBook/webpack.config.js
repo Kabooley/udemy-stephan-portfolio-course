@@ -5,7 +5,8 @@ module.exports = {
 	mode: 'development',
 	entry: {
 		index: './src/index.tsx',
-		bundleWorker: './src/worker/bundle.worker.ts'
+		bundleWorker: './src/worker/bundle.worker.ts',
+		jsxHighlightWorker: './src/worker/jsx-highlight.worker.ts'
 	},
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js'],

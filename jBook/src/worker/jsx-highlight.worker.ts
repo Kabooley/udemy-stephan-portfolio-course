@@ -1,4 +1,5 @@
 import type * as TypeScriptType from "typescript";
+import type { iMessage } from "../constants/types";
 // import ts from "typescript";  
 
 self.importScripts(
@@ -23,10 +24,10 @@ export interface iClassification {
 };
 
 // MessageData sent from main thread.
-interface iSyntaxHighlightMessageData {
+export interface iSyntaxHighlightMessageData extends iMessage {
     code: string;
     title: string;
-    version: string;
+    version: number;
 };
 
   
@@ -152,6 +153,12 @@ function addChildNodes(
 
 // Respond to message from parent thread
 self.onmessage = (event: MessageEvent<iSyntaxHighlightMessageData>) => {
+
+  if(event.data.order !== "jsxhighlight") return;
+
+  // DEBUG:
+  console.log("[jsx-highlight.worker.ts] onmessage");
+
   const { code, title, version }: iSyntaxHighlightMessageData = event.data;
   try {
     const classifications: iClassification[] = [];

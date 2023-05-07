@@ -1,0 +1,31 @@
+
+/****
+
+Styles for JSX Syntax
+
+https://gist.github.com/satya164/a144ab580a00cf3e2a7f16ab5f9bc3c7#file-monaco-jsx-css
+*****/
+.JsxText {
+    color: #5c6773;
+}
+
+.JsxSelfClosingElement,
+.JsxOpeningElement,
+.JsxClosingElement,
+.tagName-of-JsxOpeningElement,
+.tagName-of-JsxClosingElement,
+.tagName-of-JsxSelfClosingElement {
+color: #41a6d9;
+}
+
+.name-of-JsxAttribute {
+color: #f08c36;
+}
+
+.name-of-PropertyAssignment {
+color: #86b300;
+}
+
+.name-of-PropertyAccessExpression {
+color: #f08c36;
+}

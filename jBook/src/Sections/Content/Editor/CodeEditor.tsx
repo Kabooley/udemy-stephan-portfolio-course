@@ -1,24 +1,18 @@
 import React, { useMemo, useEffect, useRef } from 'react';
-import axios from 'axios';
 import type * as monacoReact from '@monaco-editor/react';
 import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
 import MonacoEditor from '@monaco-editor/react';
 import prettier from 'prettier';
 import parser from 'prettier/parser-babel';
 
-import type { iClassification } from '../../../worker/jsx-highlight.worker';
+import type { iClassification, iSyntaxHighlightMessageData } from '../../../worker/jsx-highlight.worker';
 
 interface iMonacoProps {
 	onChangeHandler: (v: string) => void;
 	// onMount: monaco.OnMount;
 };
 
-interface iMessage {
-	signal: string;
-	error: string;
-};
-
-const defaultValue = "const a = 'AWESOME'";
+const defaultValue = "import { createRoot } from 'react-dom/client';\r\nimport React from 'react';\r\nimport 'bulma/css/bulma.css';\r\n\r\nconst App = () => {\r\n    return (\r\n        <div className=\"container\">\r\n          <span>REACT</span>\r\n        </div>\r\n    );\r\n};\r\n\r\nconst root = createRoot(document.getElementById('root'));\r\nroot.render(<App />);";
 
 // monaco-editor Editor component options
 const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
@@ -35,8 +29,7 @@ const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
 
 
 /**
- * Set formatting rules.
- * 
+ * TODO: 検討：formattingはコンテキストメニューに移行するかボタンのままにするか
  * */ 
 const setFormatter = (m: typeof monacoAPI): void => {
 
@@ -68,6 +61,13 @@ const setFormatter = (m: typeof monacoAPI): void => {
 		});
 };
 
+/**
+ * Set TypeScript compiler options to monaco-editor
+ * 
+ * 参考：
+ * 
+ * https://github.com/satya164/monaco-editor-boilerplate/blob/master/src/Editor.js
+ * */ 
 const setCompilerOptions = (m: typeof monacoAPI) => {
 
 	// m.languages.typescript.typescriptDefaults.setCompilerOptions({
@@ -92,12 +92,29 @@ const setCompilerOptions = (m: typeof monacoAPI) => {
 	// 	reactDefFile,
 	// 	`file:///node_modules/@react/types/index.d.ts`
 	// );
+
+	/**
+	 * Configure the typescript compiler to detect JSX and load type definitions
+	 */
+	const compilerOptions: monacoAPI.languages.typescript.CompilerOptions = {
+		allowJs: true,
+		allowSyntheticDefaultImports: true,
+		alwaysStrict: true,
+		// jsx: monacoAPI.languages.typescript.JsxEmit.React,
+		jsx: 2,
+		jsxFactory: 'React.createElement',
+	};
+	
+	m.languages.typescript.typescriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
+	m.languages.typescript.javascriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
 };
 
 
-/***
- * 
- * */ 
+
 const CodeEditor = (
 	{ onChangeHandler } : iMonacoProps
 ) => {
@@ -120,6 +137,10 @@ const CodeEditor = (
 					const model = _editorRef.current?.getModel();
 					if(model && model.getVersionId() !== version) return;
 
+					// DEBUG:
+					console.log("[CodeEditor] Apply jsx highlight");
+					console.log(classifications);
+
 					const decorations: monacoAPI.editor.IModelDeltaDecoration[] = classifications.map(classification => ({
 						range: new monacoAPI.Range(
 							classification.startLineNumber,
@@ -134,6 +155,8 @@ const CodeEditor = (
 								: classification.kind
 						}
 					}));
+
+					console.log(decorations);
 
 					_editorRef.current?.createDecorationsCollection(decorations);
             }, false);
@@ -156,6 +179,7 @@ const CodeEditor = (
 		console.log("[monaco] before mount");
 		_monacoRef.current = m;
 		setFormatter(m);
+		setCompilerOptions(m);
 	};
 
 	/***
@@ -174,6 +198,22 @@ const CodeEditor = (
     const onChange: monacoReact.OnChange = (v, e) => {
 		console.log("[monaco] on change");
         onChangeHandler(v === undefined ? "" : v);
+
+		// Send code to apply jsx decoration
+		/**
+		 * Is mode TypeScript or JavaScript?
+		 * Is new code not equal previous code?
+		 * 
+		 * */ 
+		if(_editorRef.current) {
+			const m: iSyntaxHighlightMessageData = {
+				code: _editorRef.current.getModel()!.getValue(),
+				title: "",
+				version: _editorRef.current.getModel()!.getVersionId(),
+				order: "jsxhighlight"
+			};
+			jsxHighlightWorker.postMessage(m);
+		}
     };
 
 	/***

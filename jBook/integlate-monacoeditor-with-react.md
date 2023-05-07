@@ -394,29 +394,79 @@ interface iClassification {
 
 （いろいろと都合がよい）
 
+#### jsx highlightの反映とcss
 
-
---- 5/5
-
-## IRange
-
-constructor:
-
-https://microsoft.github.io/monaco-editor/typedoc/classes/Range.html#constructor
-
-```TypeScript
-new Range(
-    startLineNumber: number, 
-    startColumn: number, 
-    endLineNumber: number, 
-    endColumn: number
-): Range
+```JavaScript
+// decorationsの中身
+[
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 1,
+            "endLineNumber": 1,
+            "endColumn": 8
+        },
+        "options": {
+            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
+        }
+    },
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 22,
+            "endLineNumber": 1,
+            "endColumn": 28
+        },
+        "options": {
+            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
+        }
+    },
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 46,
+            "endLineNumber": 1,
+            "endColumn": 47
+        },
+        "options": {
+            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
+        }
+    },
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 8,
+            "endLineNumber": 1,
+            "endColumn": 8
+        },
+        "options": {
+            "inlineClassName": "ImportClause importClause-of-ImportDeclaration"
+        }
+    },
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 8,
+            "endLineNumber": 1,
+            "endColumn": 10
+        },
+        "options": {
+            "inlineClassName": "NamedImports namedBindings-of-ImportClause"
+        }
+    },
+    {
+        "range": {
+            "startLineNumber": 1,
+            "startColumn": 20,
+            "endLineNumber": 1,
+            "endColumn": 22
+        },
+        "options": {
+            "inlineClassName": "NamedImports namedBindings-of-ImportClause"
+        }
+    },
+]
 ```
-
-
-
-
-
 
 
 

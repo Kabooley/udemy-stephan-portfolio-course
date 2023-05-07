@@ -1,20 +1,18 @@
 import * as esbuild from 'esbuild-wasm';
 import { unpkgPathPlugin } from '../bundler/plugins/unpkgPathPlugin';
 import { fetchPlugins } from '../bundler/plugins/fetch';
-
-type iOrderToWorker = "bundle" | "jsxhighlight" | "eslint";
+import type { iMessage } from '../constants/types';
 
 /***
  * @property {string} code - Code sent from main thread and about to be bundled.
  * @property {string} bundledCode - Bundled code to be send to main tread.
  * @property {Error | null} err - Error occured amoung bundling process.
- * @property {}
+ * 
  * */ 
-export interface iMessageBundleWorker {
+export interface iMessageBundleWorker extends iMessage {
     code?: string;
     bundledCode?: string;
     err?: Error | null;
-    order: iOrderToWorker;
 };
 
 interface iBuildResult {
@@ -30,15 +28,15 @@ const initializeOptions: esbuild.InitializeOptions = {
 
 let isInitialized: boolean = false;
 
-/**
- * Validate origin is valid or not.
- * */ 
-const validateOrigin = (origin: string): boolean => {
-    const expression = /^http:\/\/localhost\:8080\/?/;
-    const regex = new RegExp(expression);
+// /**
+//  * Validate origin is valid or not.
+//  * */ 
+// const validateOrigin = (origin: string): boolean => {
+//     const expression = /^http:\/\/localhost\:8080\/?/;
+//     const regex = new RegExp(expression);
 
-    return origin.match(regex) ? true : false;
-};
+//     return origin.match(regex) ? true : false;
+// };
 
 /**
  * @param { string } rawCode - The code that user typed and submitted.
@@ -105,6 +103,7 @@ self.onmessage = (e:MessageEvent<iMessageBundleWorker>): void => {
 
     // // Validate origin
     // if(!validateOrigin(e.origin)) return;
+    
     // Filter necessary message
     if(e.data.order !== "bundle") return;
 

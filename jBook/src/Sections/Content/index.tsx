@@ -3,16 +3,15 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import prettier from 'prettier';
 import parser from 'prettier/parser-babel';
 import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
-
 import Preview from './Preview';
-import { previewTemplate } from '../../constants/templates/preview';
 import CodeEditor from './Editor/CodeEditor';
 import DiffEditor from './Editor/DiffEditor';
-import './index.css';
 import type { iMessageBundleWorker } from '../../worker/bundle.worker';
+import './index.css';
 
 // import { bundler } from '../../bundler';
 // import type * as monaco from '@monaco-editor/react'
+// import { previewTemplate } from '../../constants/templates/preview';
 
 
 type iIsEditor = "editor" | "diffEditor";
@@ -43,10 +42,6 @@ const ContentSection = (): JSX.Element => {
                 if(err) throw err;
                 if(previewRef.current && previewRef.current.contentWindow) {
 
-                    // DEBUG:
-                    console.log("[ContentSection/index.tsx] set bundled code into preview frame");
-                    console.log(bundledCode);
-
                     // NOTE: To prevent srcdoc to be empty by user.
                     // 
                     // TODO: 5/7 現状直下のpostMessage()の反映を上書きしている
@@ -67,24 +62,16 @@ const ContentSection = (): JSX.Element => {
 
     const onChangeHandler = (value: string): void => {
         setCode(value);
-
     };
 
-    /**
-     * editor.OnDidMountを利用する
-     * 
-     * - コードのフォーマットを行う
-     * 
-     * TODO: send code to worker instead.
+    /***
+     * TODO: 検討：formattingはコンテキストメニューに移行するかボタンのままにするか
      * */ 
     const onFormatHandler = () => {
         if(editorRef.current === undefined) return;
 
         // FORMAT
         const unformatted = editorRef.current.getValue();
-
-        // DEBUG:
-        console.log(unformatted);
 
         const formatted = prettier.format(unformatted, {
             parser: 'babel',
@@ -95,32 +82,13 @@ const ContentSection = (): JSX.Element => {
         })
         .replace(/\n$/, '');
 
-        // DEBUG:
-        console.log(formatted);
-
         editorRef.current.setValue(formatted);
-    }
+    };
 
     const onSubmitHandler = async (): Promise<void> => {
 
         // DEBUG: 
         console.log("[Sections/Content/index.ts] on submit");
-        console.log(self.location.origin);
-
-        // DEBUG: temporary comment out below code to replace worker
-        // 
-        // if(previewRef.current && previewRef.current.contentWindow) {
-
-        //     // NOTE: To prevent srcdoc to be empty by user.
-        //     previewRef.current.srcdoc = previewTemplate;
-
-        //     const result = await bundler(code);
-
-        //     // NOTE: DON'T FORGET 'contentWindow', and pass '*'
-        //     previewRef.current.contentWindow.postMessage({
-        //         code: result.code
-        //     }, '*');
-        // }
 
         bundleWorker.postMessage({
             code: code,
@@ -145,3 +113,30 @@ const ContentSection = (): JSX.Element => {
 }
 
 export default ContentSection;
+
+
+// 5/7: Replaced to worker bundling.
+// 
+// const onSubmitHandler = async (): Promise<void> => {
+//     // DEBUG: 
+//     console.log("[Sections/Content/index.ts] on submit");
+//     console.log(self.location.origin);
+
+//     if(previewRef.current && previewRef.current.contentWindow) {
+
+//         // NOTE: To prevent srcdoc to be empty by user.
+//         previewRef.current.srcdoc = previewTemplate;
+
+//         const result = await bundler(code);
+
+//         // NOTE: DON'T FORGET 'contentWindow', and pass '*'
+//         previewRef.current.contentWindow.postMessage({
+//             code: result.code
+//         }, '*');
+//     }
+
+//     bundleWorker.postMessage({
+//         code: code,
+//         order: "bundle"
+//     });
+// };
