@@ -14,7 +14,6 @@ interface iMonacoProps {
 
 const defaultValue = "import { createRoot } from 'react-dom/client';\r\nimport React from 'react';\r\nimport 'bulma/css/bulma.css';\r\n\r\nconst App = () => {\r\n    return (\r\n        <div className=\"container\">\r\n          <span>REACT</span>\r\n        </div>\r\n    );\r\n};\r\n\r\nconst root = createRoot(document.getElementById('root'));\r\nroot.render(<App />);";
 
-// monaco-editor Editor component options
 const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
 	wordWrap: 'on',
 	minimap: { enabled: false },
@@ -37,7 +36,7 @@ const setFormatter = (m: typeof monacoAPI): void => {
     console.log("[App] setFormatter");
 
     m.languages.registerDocumentFormattingEditProvider(
-		"javascript",　
+		"javascript",
 		{
 			async provideDocumentFormattingEdits(
                 model, options, token) {
@@ -70,18 +69,33 @@ const setFormatter = (m: typeof monacoAPI): void => {
  * */ 
 const setCompilerOptions = (m: typeof monacoAPI) => {
 
-	// m.languages.typescript.typescriptDefaults.setCompilerOptions({
-	// 	target: m.languages.typescript.ScriptTarget.Latest,
-	// 	allowNonTsExtensions: true,
-	// 	moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
-	// 	module: m.languages.typescript.ModuleKind.CommonJS,
-	// 	noEmit: true,
-	// 	esModuleInterop: true,
-	// 	jsx: m.languages.typescript.JsxEmit.React,
-	// 	reactNamespace: "React",
-	// 	allowJs: true,
-	// 	typeRoots: ["node_modules/@types"],
-	//   });
+	/**
+	 * Configure the typescript compiler to detect JSX and load type definitions
+	 */
+	const compilerOptions: monacoAPI.languages.typescript.CompilerOptions = {
+		allowJs: true,
+		allowSyntheticDefaultImports: true,
+		alwaysStrict: true,
+		// jsx: monacoAPI.languages.typescript.JsxEmit.React,
+		// jsx: 2,
+		jsxFactory: 'React.createElement',
+		target: m.languages.typescript.ScriptTarget.Latest,
+		allowNonTsExtensions: true,
+		moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
+		module: m.languages.typescript.ModuleKind.ESNext,
+		noEmit: true,
+		esModuleInterop: true,
+		jsx: m.languages.typescript.JsxEmit.React,
+		reactNamespace: "React",
+		typeRoots: ["node_modules/@types"],
+	};
+	
+	m.languages.typescript.typescriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
+	m.languages.typescript.javascriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
 	
 	// m.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
 	//    noSemanticValidation: false,
@@ -93,24 +107,6 @@ const setCompilerOptions = (m: typeof monacoAPI) => {
 	// 	`file:///node_modules/@react/types/index.d.ts`
 	// );
 
-	/**
-	 * Configure the typescript compiler to detect JSX and load type definitions
-	 */
-	const compilerOptions: monacoAPI.languages.typescript.CompilerOptions = {
-		allowJs: true,
-		allowSyntheticDefaultImports: true,
-		alwaysStrict: true,
-		// jsx: monacoAPI.languages.typescript.JsxEmit.React,
-		jsx: 2,
-		jsxFactory: 'React.createElement',
-	};
-	
-	m.languages.typescript.typescriptDefaults.setCompilerOptions(
-		compilerOptions
-	);
-	m.languages.typescript.javascriptDefaults.setCompilerOptions(
-		compilerOptions
-	);
 };
 
 
@@ -130,39 +126,10 @@ const CodeEditor = (
 
 		if(window.Worker) {
 
-            jsxHighlightWorker.addEventListener('message', (
-                { data }: MessageEvent<{classifications: iClassification[], version: number}>
-                ) => {
-                    const { classifications, version } = data;
-					const model = _editorRef.current?.getModel();
-					if(model && model.getVersionId() !== version) return;
-
-					// DEBUG:
-					console.log("[CodeEditor] Apply jsx highlight");
-					console.log(classifications);
-
-					const decorations: monacoAPI.editor.IModelDeltaDecoration[] = classifications.map(classification => ({
-						range: new monacoAPI.Range(
-							classification.startLineNumber,
-							classification.startColumn,
-							classification.endLineNumber,
-							classification.endColumn,
-						),
-						options: {
-							// Check type is undefined 
-							inlineClassName: classification.type
-								? `${classification.kind} ${classification.type}-of-${classification.parentKind}`
-								: classification.kind
-						}
-					}));
-
-					console.log(decorations);
-
-					_editorRef.current?.createDecorationsCollection(decorations);
-            }, false);
-
+            jsxHighlightWorker.addEventListener('message', _cbJsxHighlight, false);
 
 			return () => {
+				jsxHighlightWorker.removeEventListener('message', _cbJsxHighlight, false);
 				jsxHighlightWorker.terminate();
 				// ESLintWorker.terminate();
 			}
@@ -187,8 +154,13 @@ const CodeEditor = (
 	 * */
 	const onMount: monacoReact.OnMount = (e, m) => {
 		console.log("[monaco] on did mount.");
+		
+		m.editor.setModelLanguage(e.getModel()!, "typescript");
+
+		console.log(m.languages.typescript.typescriptDefaults.getCompilerOptions());
 		if(_editorRef.current === undefined) {
 			_editorRef.current = e;
+			console.log(_editorRef.current?.getModel()?.getLanguageId());
 		}
 	};
 
@@ -225,13 +197,50 @@ const CodeEditor = (
 		console.log(markers);
 	};
 
+	/***
+	 * 
+	 * */ 
+	const _cbJsxHighlight = (
+		{ data }: MessageEvent<{classifications: iClassification[], version: number}>
+		) => {
+			const { classifications, version } = data;
+			const model = _editorRef.current?.getModel();
+			if(model && model.getVersionId() !== version) return;
+
+			// DEBUG:
+			console.log("[CodeEditor] Apply jsx highlight");
+			console.log(classifications);
+
+			const decorations: monacoAPI.editor.IModelDeltaDecoration[] = classifications.map(classification => ({
+				range: new monacoAPI.Range(
+					classification.startLineNumber,
+					classification.startColumn,
+					classification.endLineNumber,
+					classification.endColumn,
+				),
+				options: {
+					// Check type is undefined 
+					inlineClassName: classification.type
+						? `${classification.kind} ${classification.type}-of-${classification.parentKind}`
+						: classification.kind
+				}
+			}));
+
+			console.log(decorations);
+
+			_editorRef.current?.createDecorationsCollection(decorations);
+	};
+
 	return (
 		<MonacoEditor
 			theme='vs-dark'
-			width="400px"
-			height="300px"
-			defaultLanguage='javascript'
-			language='javascript'
+			width="600px"
+			height="500px"
+			defaultLanguage='typescript'
+			language='typescript'
+			defaultPath='main.tsx'
+			// defaultLanguage='javascript'
+			// language='javascript'
 			defaultValue={defaultValue}
 			options={options}
 			beforeMount={beforeMount}

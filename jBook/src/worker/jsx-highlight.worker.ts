@@ -166,8 +166,9 @@ self.onmessage = (event: MessageEvent<iSyntaxHighlightMessageData>) => {
     const sourceFile: TypeScriptType.SourceFile = ts.createSourceFile(
       title,
       code,
-      // TODO: codeのscripttargetと合わせること
-      ts.ScriptTarget.ES2016,
+      // monaco.languages.typescript.CompilerOptions
+      // に合わせる
+      ts.ScriptTarget.ESNext,
       true
     );
     const lines: number[] = code.split('\n').map(line => line.length);

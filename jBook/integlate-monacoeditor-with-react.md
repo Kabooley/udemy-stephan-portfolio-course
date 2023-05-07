@@ -396,91 +396,144 @@ interface iClassification {
 
 #### jsx highlightの反映とcss
 
-```JavaScript
-// decorationsの中身
-[
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 1,
-            "endLineNumber": 1,
-            "endColumn": 8
-        },
-        "options": {
-            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
-        }
-    },
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 22,
-            "endLineNumber": 1,
-            "endColumn": 28
-        },
-        "options": {
-            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
-        }
-    },
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 46,
-            "endLineNumber": 1,
-            "endColumn": 47
-        },
-        "options": {
-            "inlineClassName": "ImportDeclaration externalModuleIndicator-of-SourceFile"
-        }
-    },
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 8,
-            "endLineNumber": 1,
-            "endColumn": 8
-        },
-        "options": {
-            "inlineClassName": "ImportClause importClause-of-ImportDeclaration"
-        }
-    },
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 8,
-            "endLineNumber": 1,
-            "endColumn": 10
-        },
-        "options": {
-            "inlineClassName": "NamedImports namedBindings-of-ImportClause"
-        }
-    },
-    {
-        "range": {
-            "startLineNumber": 1,
-            "startColumn": 20,
-            "endLineNumber": 1,
-            "endColumn": 22
-        },
-        "options": {
-            "inlineClassName": "NamedImports namedBindings-of-ImportClause"
-        }
-    },
-]
+typescriptがjsxを認識していない模様。
+
+そのため、iClassificationを生成するときにtokenをjsxではなく、
+
+たとえば`<`演算子として認識している。
+
+となるとcompileroptionか。
+
+
+
+
+#### エディタの言語設定をtypescriptにしても型付けを受け付けない問題
+
+結論：`@monaco-editor/react`の場合、`defaultPath`プロパティに`.tsx`のファイル名を指定する
+
+ファイル名は何でもいい模様
+
+----
+
+エディタで以下のように入力すると
+
+```TypeScript
+import { createRoot } from 'react-dom/client';
+import React from 'react';
+import 'bulma/css/bulma.css';
+
+// 以下のような型付けはtypescritpファイルでのみ受け付けますというエラーが出る
+const App: React.JSX.Element = () => {
+    return (
+        <div className="container">
+          <span>REACT</span>
+        </div>
+    );
+};
+
 ```
 
+言語設定:
 
+```TypeScript
+const setCompilerOptions = (m: typeof monacoAPI) => {
 
+	/**
+	 * Configure the typescript compiler to detect JSX and load type definitions
+	 */
+	const compilerOptions: monacoAPI.languages.typescript.CompilerOptions = {
+		allowJs: true,
+		allowSyntheticDefaultImports: true,
+		alwaysStrict: true,
+		// jsx: monacoAPI.languages.typescript.JsxEmit.React,
+		// jsx: 2,
+		jsxFactory: 'React.createElement',
+		target: m.languages.typescript.ScriptTarget.Latest,
+		allowNonTsExtensions: true,
+		moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
+		module: m.languages.typescript.ModuleKind.ESNext,
+		noEmit: true,
+		esModuleInterop: true,
+		jsx: m.languages.typescript.JsxEmit.React,
+		reactNamespace: "React",
+		typeRoots: ["node_modules/@types"],
+	};
+	
+	m.languages.typescript.typescriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
+	m.languages.typescript.javascriptDefaults.setCompilerOptions(
+		compilerOptions
+	);
+};
 
+// ...
 
+// @monaco-editor/react BeforeMount handler
+// 
+// 以下のようにcompilerOptionを設定してもダメ
+	const beforeMount: monacoReact.BeforeMount = (m) => {
+		console.log("[monaco] before mount");
+		_monacoRef.current = m;
+		setFormatter(m);
+		setCompilerOptions(m);
+	};
 
+    // ...
 
+	return (
+		<MonacoEditor
+			theme='vs-dark'
+			width="600px"
+			height="500px"
+			defaultLanguage='typescript'
+			language='typescript'
+			// defaultLanguage='javascript'
+			// language='javascript'
+			defaultValue={defaultValue}
+			options={options}
+			beforeMount={beforeMount}
+			onMount={onMount}
+			onChange={onChange}
+			onValidate={onValidate}
+		/>
+	);
+```
 
+setModelLanguage()を呼び出してもダメ。
 
+```TypeScript
+const onMount: monacoReact.OnMount = (e, m) => {
+		console.log("[monaco] on did mount.");
+		
+        // ここでの呼び出しは意味ないかも？
+		m.editor.setModelLanguage(e.getModel()!, "typescript");
 
+		console.log(m.languages.typescript.typescriptDefaults.getCompilerOptions());
+		if(_editorRef.current === undefined) {
+			_editorRef.current = e;
+			console.log(_editorRef.current?.getModel()?.getLanguageId());
+		}
+	};
+```
 
+どうもcreateEditorするときにせっとするmodelに、`.tsx`ファイルを読み込ませないといかんみたいに指摘する記事がちらほら
 
+https://github.com/cancerberoSgx/jsx-alone/blob/master/jsx-explorer/HOWTO_JSX_MONACO.md
 
+@monaco-editor/reactの場合、`defaultPath`でpath指定できる模様
 
+https://github.com/suren-atoyan/monaco-react#multi-model-editor
+
+上記の公式でデモがあってその通りにすればいい感じ。
+
+つまり、
+
+`defaultPath`プロパティに`.tsx`のファイル名を指定すればよいだけ。
+
+問題はtypescript言語設定がこれで有効になったものの、このアプリケーションの仕様上import文でインポートしているモジュールが使えない点
+
+これはどういうアプリにするかという問題につながる。
 
 
 ## [JavaScript] webworkerについて

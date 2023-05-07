@@ -30,32 +30,13 @@ const ContentSection = (): JSX.Element => {
 
     useEffect(() => {
         console.log("[Sections/Content/index.ts] component did mount");
+
         if(window.Worker) {
-            
-            bundleWorker.addEventListener('message', (
-                { data }: MessageEvent<iMessageBundleWorker>
-            ) => {
-                // DEBUG: 
-                console.log("[ContentSection/index.tsx] bundleWorker onmessage");
-
-                const { bundledCode, err } = data;
-                if(err) throw err;
-                if(previewRef.current && previewRef.current.contentWindow) {
-
-                    // NOTE: To prevent srcdoc to be empty by user.
-                    // 
-                    // TODO: 5/7 現状直下のpostMessage()の反映を上書きしている
-                    // 
-                    // previewRef.current.srcdoc = previewTemplate;
-
-                    previewRef.current.contentWindow.postMessage({
-                        code: bundledCode
-                    }, '*');
-                }
-            }, false);
+            bundleWorker.addEventListener('message', _cbHandleBundleMessage, false);
         }
 
         return () => {
+            bundleWorker.removeEventListener('message', _cbHandleBundleMessage, false);
             bundleWorker.terminate();
         }
     }, []);
@@ -96,6 +77,28 @@ const ContentSection = (): JSX.Element => {
         });
     };
 
+    const _cbHandleBundleMessage = (
+        { data }: MessageEvent<iMessageBundleWorker>
+    ) => {
+        // DEBUG: 
+        console.log("[ContentSection/index.tsx] bundleWorker onmessage");
+
+        const { bundledCode, err } = data;
+        if(err) throw err;
+        if(previewRef.current && previewRef.current.contentWindow) {
+
+            // NOTE: To prevent srcdoc to be empty by user.
+            // 
+            // TODO: 5/7 現状直下のpostMessage()の反映を上書きしている
+            // 
+            // previewRef.current.srcdoc = previewTemplate;
+
+            previewRef.current.contentWindow.postMessage({
+                code: bundledCode
+            }, '*');
+        }
+    }
+
     return (
         <div className="content-section">
             {
@@ -110,7 +113,7 @@ const ContentSection = (): JSX.Element => {
             <Preview ref={previewRef} />
         </div>
     );
-}
+};
 
 export default ContentSection;
 
