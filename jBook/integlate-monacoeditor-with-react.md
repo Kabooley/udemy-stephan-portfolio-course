@@ -265,6 +265,14 @@ originが空なのは開発中だからかな？
 
 ひとまずoriginチェックは凍結する。
 
+#### Optimizing Performance worker vs. fetch
+
+bundlingプロセスは講義の通りfetchするのとworker使うのとどちらがいいのだろうか。
+
+パフォーマンスという側面で検証する。
+
+
+
 #### 実装：ESLint
 
 検証中

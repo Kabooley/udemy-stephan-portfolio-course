@@ -89,16 +89,22 @@ const bundler = async (rawCode: string): Promise<iBuildResult> => {
     }
 };
 
+
+/***
+ * NOTE: Validate MessageEvent.origin is unavailable.
+ * 
+ * Origin of Message from Main thread includes empty string.  
+ * 
+ * */ 
 self.onmessage = (e:MessageEvent<iMessageBundleWorker>): void => {
 
         
     // DEBUG: 
     console.log("[bundle.worker.ts] got message");
     console.log(e);
-    console.log(self.location.origin);
 
-    // Validate origin
-    if(!validateOrigin(e.origin)) return;
+    // // Validate origin
+    // if(!validateOrigin(e.origin)) return;
     // Filter necessary message
     if(e.data.order !== "bundle") return;
 

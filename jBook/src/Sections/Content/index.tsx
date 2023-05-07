@@ -42,8 +42,16 @@ const ContentSection = (): JSX.Element => {
                 const { bundledCode, err } = data;
                 if(err) throw err;
                 if(previewRef.current && previewRef.current.contentWindow) {
+
+                    // DEBUG:
+                    console.log("[ContentSection/index.tsx] set bundled code into preview frame");
+                    console.log(bundledCode);
+
                     // NOTE: To prevent srcdoc to be empty by user.
-                    previewRef.current.srcdoc = previewTemplate;
+                    // 
+                    // TODO: 5/7 現状直下のpostMessage()の反映を上書きしている
+                    // 
+                    // previewRef.current.srcdoc = previewTemplate;
 
                     previewRef.current.contentWindow.postMessage({
                         code: bundledCode

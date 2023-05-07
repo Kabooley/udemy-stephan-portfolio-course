@@ -10,7 +10,7 @@ export const previewTemplate = `
       <script>
         window.addEventListener('message', (e) => {
           try {
-            console.log(e);
+            console.log(e.data);
             if(e.data === undefined || e.data.code === undefined) throw new Error("Error: property data or data.code is undefined");
             // NOTE: using eval() !
             eval(e.data.code);

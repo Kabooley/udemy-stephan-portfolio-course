@@ -70,28 +70,28 @@ const setFormatter = (m: typeof monacoAPI): void => {
 
 const setCompilerOptions = (m: typeof monacoAPI) => {
 
-	m.languages.typescript.typescriptDefaults.setCompilerOptions({
-		target: m.languages.typescript.ScriptTarget.Latest,
-		allowNonTsExtensions: true,
-		moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
-		module: m.languages.typescript.ModuleKind.CommonJS,
-		noEmit: true,
-		esModuleInterop: true,
-		jsx: m.languages.typescript.JsxEmit.React,
-		reactNamespace: "React",
-		allowJs: true,
-		typeRoots: ["node_modules/@types"],
-	  });
+	// m.languages.typescript.typescriptDefaults.setCompilerOptions({
+	// 	target: m.languages.typescript.ScriptTarget.Latest,
+	// 	allowNonTsExtensions: true,
+	// 	moduleResolution: m.languages.typescript.ModuleResolutionKind.NodeJs,
+	// 	module: m.languages.typescript.ModuleKind.CommonJS,
+	// 	noEmit: true,
+	// 	esModuleInterop: true,
+	// 	jsx: m.languages.typescript.JsxEmit.React,
+	// 	reactNamespace: "React",
+	// 	allowJs: true,
+	// 	typeRoots: ["node_modules/@types"],
+	//   });
 	
-	m.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-	   noSemanticValidation: false,
-	   noSyntaxValidation: false,
-	});
+	// m.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+	//    noSemanticValidation: false,
+	//    noSyntaxValidation: false,
+	// });
 	
-	m.languages.typescript.typescriptDefaults.addExtraLib(
-		reactDefFile,
-		`file:///node_modules/@react/types/index.d.ts`
-	);
+	// m.languages.typescript.typescriptDefaults.addExtraLib(
+	// 	reactDefFile,
+	// 	`file:///node_modules/@react/types/index.d.ts`
+	// );
 };
 
 
@@ -120,7 +120,7 @@ const CodeEditor = (
 					const model = _editorRef.current?.getModel();
 					if(model && model.getVersionId() !== version) return;
 
-					const decorations: monacoAPI.IModelDeltaDecoration[] = classifications.map(classification => ({
+					const decorations: monacoAPI.editor.IModelDeltaDecoration[] = classifications.map(classification => ({
 						range: new monacoAPI.Range(
 							classification.startLineNumber,
 							classification.startColumn,
@@ -135,9 +135,7 @@ const CodeEditor = (
 						}
 					}));
 
-					// TODO: assign decorations property to model correctly.
-					if(model.decorations === undefined) model.decorations = [];
-					model!.decorations = _editorRef.current?.createDecorationsCollection(decorations);
+					_editorRef.current?.createDecorationsCollection(decorations);
             }, false);
 
 

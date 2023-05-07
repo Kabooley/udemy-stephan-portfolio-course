@@ -1,12 +1,12 @@
 import type * as TypeScriptType from "typescript";
-import ts from "typescript";  
+// import ts from "typescript";  
 
 self.importScripts(
     'https://cdnjs.cloudflare.com/ajax/libs/typescript/5.0.4/typescript.min.js',
 );
 
 // TODO: 結局tsはmoduleでimportするべきでimportScripts入らないのか確認
-// declare const ts: typeof TypeScriptType;
+declare const ts: typeof TypeScriptType;
 
 // Data type to sent main thread.
 export interface iClassification {
@@ -41,7 +41,7 @@ function getLineNumberAndOffset(start: number, lines: number[]) {
     return { line: line + 1, offset };
 }
   
-function nodeToRange(node: ts.Node): number[] {
+function nodeToRange(node: TypeScriptType.Node): number[] {
   if (
     typeof node.getStart === 'function' &&
     typeof node.getEnd === 'function'
@@ -78,7 +78,7 @@ function getNodeType(
 //   return Object.keys(parent).find(key => parent[key] === node);
 // }
 
-function getParentRanges(node: ts.Node): { start: number, end: number}[] 
+function getParentRanges(node: TypeScriptType.Node): { start: number, end: number}[] 
 {
   const ranges: { start: number, end: number}[] = [];
   const [start, end] = nodeToRange(node);
@@ -170,5 +170,6 @@ self.onmessage = (event: MessageEvent<iSyntaxHighlightMessageData>) => {
     self.postMessage({ classifications, version });
   } catch (e) {
     /* Ignore error */
+    console.error(e);
   }
 };
