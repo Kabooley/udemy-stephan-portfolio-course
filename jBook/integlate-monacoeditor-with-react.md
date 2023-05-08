@@ -22,7 +22,7 @@
 
 ## 実装
 
-#### Prettier formatting
+#### 実装： Prettier formatting
 
 講義ではformattingは、専用のボタンを用意してmonaco-editorの既存機能を使わずに実装していたけれど、
 
@@ -80,7 +80,7 @@ const setFormatter = (m: typeof monacoAPI): void => {
 
 ```
 
-#### bundling in worker
+#### 実装： bundling in worker
 
 bundlingプロセスをworkerへ移す。
 
@@ -621,6 +621,27 @@ https://github.com/suren-atoyan/monaco-react#multi-model-editor
 
 これはどういうアプリにするかという問題につながる。
 
+#### Multi Model
+
+@monaco-editor/reactはマルチモデルエディタに...対応しているとは公式が言っている。
+
+https://github.com/suren-atoyan/monaco-react#multi-model-editor
+
+とはいえたとえば、extraLibとか対応できるの？
+
+TODO: 公式のソースを確認して@monaco-editor/reactをまだ使うか検討する
+TODO: 気になる：editor.setSelection()とは？
+
+#### monaco-editorが想定するマルチモデル
+
+だいたいこんな感じ：
+
+- fileをあらかじめ用意しておく
+- fileからmodelをcreateModelする
+- editorインスタンスにsetModelする
+- どこかにmodelの最後の情報を保存しておく
+
+
 
 ## [JavaScript] webworkerについて
 
@@ -657,23 +678,210 @@ https://security.stackexchange.com/questions/20022/how-to-use-postmessage-secure
 
 
 
-## メモ
+## 解析：Satyajittのmonaco-editor-boilerplate
 
-テストコード:
+fileをここに用意した：
+
+`rootDir/Satyajitt-monaco.js`
+
+知りたいこと：
+
+- multi modelエディタをどうやって実現しているか
+- jsx highlightをどうあって実現しているか
+
+componentDidMount():
 
 ```JavaScript
-import { createRoot } from 'react-dom/client';
-import React from 'react';
-import 'bulma/css/bulma.css';
 
-const App = () => {
-    return (
-        <div className="container">
-          <span>REACT</span>
-        </div>
+/***
+ * @param this.props
+ * files: { [path: stirng]: string }で、modelに適用させるモジュールとそのパスの組み合わせだと思う
+ * path: stringで
+ * 
+ * */ 
+  componentDidMount() {
+    // Intialize the linter
+    this._linterWorker = new ESLintWorker();
+    this._linterWorker.addEventListener('message', ({ data }: any) =>
+      this._updateMarkers(data)
     );
-};
 
-const root = createRoot(document.getElementById('root'));
-root.render(<App />);
+    // Intialize the type definitions worker
+    // 
+    // 使用言語に応じた、必要なライブラリをその都度更新している
+    this._typingsWorker = new TypingsWorker();
+    this._typingsWorker.addEventListener('message', ({ data }: any) =>
+      this._addTypings(data)
+    );
+
+    // Fetch some definitions
+    const dependencies = {
+      expo: '29.0.0',
+      react: '16.3.1',
+      'react-native': '0.55.4',
+    };
+
+    Object.keys(dependencies).forEach(name =>
+      this._typingsWorker.postMessage({
+        name,
+        version: dependencies[name],
+      })
+    );
+
+    /**
+     * @param {stirng} path - 
+     * @param {stirng} value - 
+     * 
+     * */ 
+    const { path, value, ...rest } = this.props;
+
+    /**
+     * this._node: DOMを指している。editorを挿入するDOM
+     * rest?: IStandaloneEditorConstructionOptions
+     * override?: IEditorOverrideServices
+     * */ 
+    this._editor = monaco.editor.create(
+        this._node, 
+        rest, 
+      {
+        // IEditorOverrideServicesは調べたとこｒなんでも「足す」ことができるみたいで
+        // codeEditorServiceなるものは開発者の独自関数である
+        codeEditorService: Object.assign(Object.create(codeEditorService), {
+            openCodeEditor: async ({ resource, options }, editor) => {
+            // Open the file with this path
+            // This should set the model with the path and value
+            this.props.onOpenPath(resource.path);
+
+            // Move cursor to the desired position
+            editor.setSelection(options.selection);
+
+            // Scroll the editor to bring the desired line into focus
+            editor.revealLine(options.selection.startLineNumber);
+
+            return Promise.resolve({
+                getControl: () => editor,
+            });
+            }
+        }),
+    });
+
+    
+    // 既存のmodelを最新の状態に更新するもしくは新規にmodelを生成する
+    Object.keys(this.props.files).forEach(path =>
+      this._initializeFile(path, this.props.files[path])
+    );
+
+    // setModel()他をする
+    this._openFile(path, value);
+    this._phantom.contentWindow.addEventListener('resize', this._handleResize);
+  }
+```
+
+- `Object.assign(Object.create(codeEditorService), {})`
+
+codeEditorSErviceをprototypeにした新しいオブジェクトを生成する。
+
+assignで第二引数をそのオブジェクトに上書きする。
+
+- `this._initializeFile()`
+
+
+```JavaScript
+_initializeFile = (path: string, value: string) => {
+
+    // 引数のpathと一致する、生成済のmodelを探す
+    let model = monaco.editor
+      .getModels()
+      .find(model => model.uri.path === path);
+
+    if (model) {
+        // 生成済のmodelが存在するなら
+        // そのmodelを最後に使った状態に戻すのと、最新の状態に更新する
+      // If a model exists, we need to update it's value
+      // This is needed because the content for the file might have been modified externally
+      // Use `pushEditOperations` instead of `setValue` or `applyEdits` to preserve undo stack
+      model.pushEditOperations(
+        [],
+        [
+          {
+            range: model.getFullModelRange(),
+            text: value,
+          },
+        ]
+      );
+    } else {
+      model = monaco.editor.createModel(
+        value,
+        'javascript',
+        new monaco.Uri().with({ path })
+      );
+      model.updateOptions({
+        tabSize: 2,
+        insertSpaces: true,
+      });
+    }
+  };
+```
+
+- `this._openFile()`
+
+```JavaScript
+_openFile = (path: string, value: string) => {
+    this._initializeFile(path, value);
+
+    const model = monaco.editor
+      .getModels()
+      .find(model => model.uri.path === path);
+
+    // pathに一致するmodelをエディタに適用する
+    this._editor.setModel(model);
+
+    // Restore the editor state for the file
+    const editorState = editorStates.get(path);
+
+    if (editorState) {
+      this._editor.restoreViewState(editorState);
+    }
+
+    this._editor.focus();
+
+    // サブスクリプションを適用したモデル専用に更新する
+    // Subscribe to change in value so we can notify the parent
+    this._subscription && this._subscription.dispose();
+    this._subscription = this._editor.getModel().onDidChangeContent(() => {
+      const value = this._editor.getModel().getValue();
+
+      this.props.onValueChange(value);
+      this._lintCode(value);
+    });
+  };
+  ```
+
+## [monaco-editor] addExtraLib
+
+https://microsoft.github.io/monaco-editor/typedoc/interfaces/languages.typescript.LanguageServiceDefaults.html#addExtraLib
+
+> ソース ファイルを言語サービスに追加します。これは、jquery.d.ts などのエディター ドキュメントとして読み込まれない typescript (定義) ファイルに使用します。
+
+  流れ：
+
+  選択言語に必要なライブラリを取得
+  `monaco.language.typescript.javascriptDefaults.addExtraLib()`でライブラリを追加
+  あとでdisposeできるように戻り値を保存しておく
+
+```JavaScript
+// 例
+  _addTypings = ({ typings }) => {
+    Object.keys(typings).forEach(path => {
+      let extraLib = extraLibs.get(path);
+
+      extraLib && extraLib.dispose();
+      extraLib = monaco.languages.typescript.javascriptDefaults.addExtraLib(
+        typings[path],
+        path
+      );
+
+      extraLibs.set(path, extraLib);
+    });
+  };
 ```
