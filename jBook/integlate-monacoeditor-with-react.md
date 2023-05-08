@@ -354,6 +354,92 @@ async function compile(data) {
 // ...
 ```
 
+#### 参考サイトのおさらい
+
+- codesandboxのwebworkerを使う
+- メインスレッドはmonaco-editorの`onChange`のタイミングでコードをworkerへ送信する
+- workerは`IModelDeltaDecoration`のもととなるデータを返す
+- メインスレッドは、メッセージ取得後、`requestAnimationFrame`で`createDecorationsCollection`を呼び出してデータを反映させる
+
+#### コード送信タイミング
+
+結論：現状、`onDidChangeModelContent`の反応するタイミングで良し
+
+参考：
+
+https://github.com/codesandbox/codesandbox-client/blob/196301c919dd032dccc08cbeb48cf8722eadd36b/packages/app/src/app/components/CodeEditor/Monaco/index.js
+
+
+requestAnimationFrame 
+--> onDidChangeModelContent // onchangeサブスクリプションの登録
+--> handleChange            // onchangeの実装
+--> syntaxHighlight(editor.getModel().getValue(), currentModelTitle, version)
+
+#### コード反映の流れ
+
+onmessage
+--> requestAnimationFrame()
+--> updateDecorations()
+--> createDecorationsCollection()  // deltaDecorationsは非推奨になった
+
+```JavaScript
+updateDecorations = async (classifications: Array<Object>) => {
+    const decorations = classifications.map(classification => ({
+      range: new this.monaco.Range(
+        classification.startLine,
+        classification.start,
+        classification.endLine,
+        classification.end
+      ),
+      options: {
+        inlineClassName: classification.type
+          ? `${classification.kind} ${classification.type}-of-${
+              classification.parentKind
+            }`
+          : classification.kind,
+      },
+    }));
+
+    const currentModule = this.currentModule;
+    const modelInfo = await this.getModelById(currentModule.id);
+
+    modelInfo.decorations = this.editor.deltaDecorations(
+      modelInfo.decorations || [],
+      decorations
+    );
+  };
+```
+
+#### やり取りするデータ
+
+参考サイトだとworkerがメインスレッドへ送信するのは`classification`なるオブジェクト。
+
+要はIRangeとIModelDecorationOptionsのプロパティである。
+
+```TypeScript
+interface IRange {
+    endColumn: number;
+    endLineNumber: number;
+    startColumn: number;
+    startLineNumber: number;
+};
+```
+https://microsoft.github.io/monaco-editor/typedoc/interfaces/editor.IModelDecorationOptions.html#inlineClassName
+
+> 設定すると、このCSSクラス名で装飾がテキストとインラインでレンダリングされます。テキストに影響を与えなければならないCSSルールにのみ使用してください。例えば、classNameを使用して背景色の装飾をさせます。
+
+```JavaScript
+options: {
+    inlineClassName: classification.type
+        ? `${classification.kind} ${classification.type}-of-${
+            classification.parentKind
+        }`
+        : classification.kind,
+},
+```
+
+
+
 #### 処理の流れ
 
 - onChangeイベントでコードを取得する
