@@ -621,6 +621,125 @@ https://github.com/suren-atoyan/monaco-react#multi-model-editor
 
 これはどういうアプリにするかという問題につながる。
 
+#### 実装：エディタでimportしているファイルの型定義を動的に取得する
+
+今エディタで、
+
+```TypeScript
+import { createRoot } from 'react-dom/client';
+import React from 'react';
+import 'bulma/css/bulma.css';
+
+const App = () => {
+    return (
+        <div className="container">
+          <span>REACT</span>
+        </div>
+    );
+};
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+というコードを書いたとする。
+
+editorの設定で、このエディタが想定するファイルがTypeScriptの場合、
+
+'react'がなんなのかわからんというエラーが出る。
+
+当然である。
+
+@typesやindex.d.tsファイルがこのエディタにインストールされていないからである。
+
+そのため
+
+
+ユーザが動的にimportするこれらのモジュールの型をどうやってか認識させなければならない。
+
+これの実装。
+
+#### 参考になりそうな情報
+
+https://stackoverflow.com/questions/43058191/how-to-use-addextralib-in-monaco-with-an-external-type-definition/66948535#66948535
+
+https://github.com/microsoft/monaco-editor/issues/1839
+
+#### 読み取った内容
+
+- `addExtraLib`を使ってエディタでimportするモジュールをアプリケーションの裏側で追加する
+- `monaco.languages.typescript.typescriptDefaults.setCompilerOptions`, `monaco.languages.typescript.typescriptDefaults.addExtraLib`で事前の設定を行う
+- 言語ごとにモデルを生成(`createModel`) , `monaco.editor.create`や`setModel`でエディタに反映させる
+
+となるとエディタにユーザが追加したimport文は動的に追加したものなので、上記のようにあらかじめ用意したモジュール用の解決策はうまくいかない？
+
+#### 実装してみる: デフォルトvalueのimport文の追加
+
+- `react-dom/client`
+- `react`
+- `bulma/css/bulma.css`
+
+上記の3つをaddExtraLibで追加する
+
+すること
+
+- languageはpathと別だけど、pathの扱う言語と同じでなくてはならないだろう
+- pathにmodelの元となる情報を用意しておく
+- pathファイルでimortしているモジュールをaddExtraLibsで追加する(どんなタイミングでもいいのかも)
+- `@monaco-editor/react`の仕様に合わせるならば、`Editor`コンポーネントの`path`プロパティに渡すだけでいい
+  pathからlanguageを取得するようにさせる、defualtLanguageはtypescriptにしておく
+  
+
+```TypeScript
+// editorインスタンスは生成済とする
+const editor = monaco.editor.create(/*  ...  */);
+
+// pathの場所にmodelの前提となるファイルを用意しておく
+// 参考
+// https://github.com/satya164/monaco-editor-boilerplate/blob/master/src/App.js
+// そうやら前提ファイルは文字列で保存しておけばよいみたい
+const files = {
+  'main.tsx': `import React from 'react'; ...`;
+};
+
+const props = {
+  files: files,
+  path: 'main.tsx',
+  value: files['main.tsx'],
+};
+
+// --- parent component ---
+// --- editor component ---
+
+
+/**
+ * @param {string} path - path that file located.
+ * @param {string} value - 
+ * 
+ * 一度createModelしたら、あとはmonaco.editor.getModels()から生成済modelを取得することができるみたい
+ * */ 
+const createModel = ({ path, value, language }) => {
+  let model = monaco.editor.getModels().find(m => m.uri.path === path);
+  if(model) {
+    /* update the model */ 
+  }
+  else {
+    model = monaco.editor.createModel(
+      value,
+      language,
+      new monaco.Uri().with({ path })
+    );
+    /* update the new model */ 
+  }
+};
+
+const applyModel = ({ path, value, language }) => {
+  const model = monaco.editor.getModels().find(m => m.uri.path === path);
+  editor.setModel(model);
+  // reset subscribers
+};
+```
+
 #### Multi Model
 
 @monaco-editor/reactはマルチモデルエディタに...対応しているとは公式が言っている。
@@ -885,3 +1004,6 @@ https://microsoft.github.io/monaco-editor/typedoc/interfaces/languages.typescrip
     });
   };
 ```
+
+- `addExtraLib`は`_addTypings`から、componentDidMountで呼び出されている
+- `
