@@ -1,3 +1,10 @@
+/*********************************************************************
+ * 
+ * TASKS of this component:
+ * - Handling value of editor component
+ * - Handling jsx highlight and bundling with workers
+ * - Decides path which determines model of monaco-editor
+ * *******************************************************************/ 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 
 import prettier from 'prettier';
@@ -6,6 +13,8 @@ import * as monacoAPI from 'monaco-editor/esm/vs/editor/editor.api';
 import Preview from './Preview';
 import CodeEditor from './Editor/CodeEditor';
 import DiffEditor from './Editor/DiffEditor';
+import { files } from '../../constants/files';
+import type { iFile } from '../../constants/files';
 import type { iMessageBundleWorker } from '../../worker/bundle.worker';
 import './index.css';
 
@@ -21,6 +30,7 @@ const ContentSection = (): JSX.Element => {
     // set iIsEditor
     const [isEditor, setIsEditor] = useState<iIsEditor>("editor");
     const [code, setCode] = useState<string>("");
+    const [currentFile, setCurrentFile] = useState<iFile>(files['react-typescript']);
     const editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
     const previewRef = useRef<HTMLIFrameElement>(null);
     const bundleWorker = useMemo(() => new Worker(
@@ -44,6 +54,7 @@ const ContentSection = (): JSX.Element => {
     const onChangeHandler = (value: string): void => {
         setCode(value);
     };
+
 
     /***
      * TODO: 検討：formattingはコンテキストメニューに移行するかボタンのままにするか
@@ -105,6 +116,9 @@ const ContentSection = (): JSX.Element => {
                 isEditor === "editor"
                 ? <CodeEditor 
                     onChangeHandler={onChangeHandler}
+                    path={currentFile.path}
+                    language={currentFile.language}
+                    value={currentFile.value}
                   />
                 : <DiffEditor />
             }

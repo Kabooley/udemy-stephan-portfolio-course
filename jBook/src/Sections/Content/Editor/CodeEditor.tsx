@@ -6,13 +6,16 @@ import prettier from 'prettier';
 import parser from 'prettier/parser-babel';
 
 import type { iClassification, iSyntaxHighlightMessageData } from '../../../worker/jsx-highlight.worker';
+import type { iFile } from '../../../constants/files';
 
-interface iMonacoProps {
+interface iProps extends iFile {
 	onChangeHandler: (v: string) => void;
 	// onMount: monaco.OnMount;
 };
 
+
 const defaultValue = "import { createRoot } from 'react-dom/client';\r\nimport React from 'react';\r\nimport 'bulma/css/bulma.css';\r\n\r\nconst App = () => {\r\n    return (\r\n        <div className=\"container\">\r\n          <span>REACT</span>\r\n        </div>\r\n    );\r\n};\r\n\r\nconst root = createRoot(document.getElementById('root'));\r\nroot.render(<App />);";
+
 
 const options: monacoAPI.editor.IStandaloneEditorConstructionOptions = {
 	wordWrap: 'on',
@@ -110,13 +113,17 @@ const setCompilerOptions = (m: typeof monacoAPI) => {
 };
 
 
+// Extra Libraries for monaco models.
+const extraLibs = new Map();
+
 
 const CodeEditor = (
-	{ onChangeHandler } : iMonacoProps
+	{ onChangeHandler, path } : iProps
 ) => {
 	const _editorRef = useRef<monacoAPI.editor.IStandaloneCodeEditor>();
 	const _monacoRef = useRef<typeof monacoAPI>();
 	const jsxHighlightWorker = useMemo(() => new Worker(new URL('../../../worker/jsx-highlight.worker.ts', import.meta.url)), []);
+	const fetchLibsWorker = useMemo(() => new Worker(new URL('../../../worker/fetchLibs.worker.ts', import.meta.url)), []);
 	// const ESLintWorker = useMemo(() => new Worker(new URL('../../../worker/eslint.worker.ts', import.meta.url)), []);
 
 
@@ -127,14 +134,29 @@ const CodeEditor = (
 		if(window.Worker) {
 
             jsxHighlightWorker.addEventListener('message', _cbJsxHighlight, false);
+            fetchLibsWorker.addEventListener('message', _cbAddLibs, false);
+			
 
 			return () => {
 				jsxHighlightWorker.removeEventListener('message', _cbJsxHighlight, false);
+				fetchLibsWorker.removeEventListener('message', _cbAddLibs, false);
 				jsxHighlightWorker.terminate();
+				fetchLibsWorker.terminate();
 				// ESLintWorker.terminate();
 			}
 		}
 	}, []);
+
+	/**
+	 * Reset libraries for current model
+	 * 
+	 * - call worker to get libraries required by new path
+	 * */ 
+	useEffect(() => {
+		fetchLibsWorker.postMessage({
+
+		});
+	}, [path]);
 
 	/***
 	 * Before create MonacoEditor editor instance. 
@@ -229,6 +251,23 @@ const CodeEditor = (
 			console.log(decorations);
 
 			_editorRef.current?.createDecorationsCollection(decorations);
+	};
+
+	/**
+	 * 
+	 * */ 
+	const _cbAddLibs = ({ typings }) => {
+		Object.keys(typings).forEach(path => {
+		  let extraLib = extraLibs.get(path);
+	
+		  extraLib && extraLib.dispose();
+		  extraLib = _monacoRef.current?.languages.typescript.javascriptDefaults.addExtraLib(
+			typings[path],
+			path
+		  );
+	
+		  extraLibs.set(path, extraLib);
+		});
 	};
 
 	return (

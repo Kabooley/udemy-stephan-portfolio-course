@@ -665,6 +665,8 @@ https://stackoverflow.com/questions/43058191/how-to-use-addextralib-in-monaco-wi
 
 https://github.com/microsoft/monaco-editor/issues/1839
 
+https://stackoverflow.com/questions/43058191/how-to-use-addextralib-in-monaco-with-an-external-type-definition
+
 #### 読み取った内容
 
 - `addExtraLib`を使ってエディタでimportするモジュールをアプリケーションの裏側で追加する
@@ -674,6 +676,15 @@ https://github.com/microsoft/monaco-editor/issues/1839
 となるとエディタにユーザが追加したimport文は動的に追加したものなので、上記のようにあらかじめ用意したモジュール用の解決策はうまくいかない？
 
 #### 実装してみる: デフォルトvalueのimport文の追加
+
+- index.tsxがmodelのもととなるpathをpropsでeditorコンポーネントへ渡す
+  pathが変更されたら再レンダリングが発生する
+
+ちょっとこんがらがってきた！
+
+処理の流れを初めに洗い出して
+
+#### メモ
 
 - `react-dom/client`
 - `react`
@@ -688,7 +699,12 @@ https://github.com/microsoft/monaco-editor/issues/1839
 - pathファイルでimortしているモジュールをaddExtraLibsで追加する(どんなタイミングでもいいのかも)
 - `@monaco-editor/react`の仕様に合わせるならば、`Editor`コンポーネントの`path`プロパティに渡すだけでいい
   pathからlanguageを取得するようにさせる、defualtLanguageはtypescriptにしておく
-  
+
+@monaco-editor/reactの場合pathをみてモデルを変更するが、addExtraLibsを動かすのは開発者側の責任なので
+
+pathの変更をトリガーする機能を用意してaddExtraLibsを発動させるようにしなくてはならない
+
+
 
 ```TypeScript
 // editorインスタンスは生成済とする

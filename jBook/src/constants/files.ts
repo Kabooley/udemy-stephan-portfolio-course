@@ -3,7 +3,14 @@
  * 
  * https://github.com/suren-atoyan/monaco-react#multi-model-editor
  * ***************************************************/ 
-export const files = {
+
+export interface iFile {
+    path: string;
+    value: string;
+    language: string;
+};
+
+export const files: { [path: string]: iFile } = {
     'javascript': {
         // will be passed to defaultPath or path property
         path: 'file:///jsmain.js',
